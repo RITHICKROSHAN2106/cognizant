@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #0284c7; /* Sky 600 */
+    --primary-dark: #0369a1;
+    --teal-clinical: #0d9488;
+    --navy-clinical: #0f172a;
+    --slate-bg: #f8fafc;
+    --card-bg: #ffffff;
+    --border-subtle: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+  }
+
+  body {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Clinical UI Utilities */
+.clinical-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.clinical-badge-critical {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.clinical-badge-high {
+  background-color: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+
+.clinical-badge-moderate {
+  background-color: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+
+.clinical-badge-low {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==========================================================================
+   PRINT STYLES: Direct Print-to-PDF Formatting for Clinical Discharge Summaries
+   ========================================================================== */
+@media print {
+  /* Hide all application navigation, sidebars, search tools, headers, and UI controls */
+  header,
+  nav,
+  aside,
+  .no-print,
+  button,
+  input,
+  .app-sidebar,
+  .app-header {
+    display: none !important;
+  }
+
+  /* Reset body and layout container for crisp A4 / Letter paper layout */
+  body, html {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    line-height: 1.35 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  main, .main-content, .printable-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Target printable report card */
+  .printable-report {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-after: avoid;
+  }
+
+  /* Prevent awkward page cuts inside clinical tables, alerts, and diagnosis lists */
+  .printable-report h2,
+  .printable-report h3,
+  .printable-report table,
+  .printable-report .avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Optimize contrast and borders on paper */
+  .printable-report .bg-slate-50,
+  .printable-report .bg-slate-100 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .printable-report .bg-rose-50,
+  .printable-report .bg-red-50 {
+    background-color: #fef2f2 !important;
+    border-color: #fecaca !important;
+  }
+
+  .printable-report .border {
+    border-color: #94a3b8 !important;
+  }
+}
+

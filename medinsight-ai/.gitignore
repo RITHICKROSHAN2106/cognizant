@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+backend/venv/
+.venv/
+
+# Build outputs
+frontend/dist/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Databases & local state
+*.db
+*.sqlite3
+postgres_data/
+
+# Environment files
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
