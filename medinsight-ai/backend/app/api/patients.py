@@ -1,5 +1,8 @@
 import datetime
+import time
+import random
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+
 from typing import List, Optional, Dict, Any
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import (
@@ -224,7 +227,163 @@ def get_patient(
 
 
 
+
+@router.post("", response_model=ApiResponse[PatientDetail], status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ApiResponse[PatientDetail], status_code=status.HTTP_201_CREATED)
+def create_patient(
+    patient_in: PatientCreate,
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """Registers a new patient and persists records across MongoDB collections."""
+    from app.services.dataset_service import dataset_service
+    
+    # Generate unique ID and MRN
+    new_id = int(time.time() % 100000000) + random.randint(1000, 9999)
+    mrn = patient_in.mrn or f"MRN-{new_id:07d}"
+    
+    patient_dict = patient_in.model_dump()
+    
+    # Calculate baseline clinical risk level
+    age = patient_dict.get("age", 50)
+    has_diabetes = "diabetes" in str(patient_dict.get("primary_diagnosis", "")).lower() or patient_dict.get("has_diabetes", True)
+    risk_p = 0.65 if (age >= 65 and has_diabetes) else 0.42 if has_diabetes else 0.22
+    risk_level = "High" if risk_p >= 0.70 else "Moderate" if risk_p >= 0.40 else "Low"
+    
+    now_iso = datetime.datetime.utcnow().isoformat()
+    
+    patient_doc = {
+        "id": new_id,
+        "mrn": mrn,
+        "first_name": patient_dict.get("first_name", "Patient"),
+        "last_name": patient_dict.get("last_name", "Record"),
+        "dob": patient_dict.get("dob", "1960-01-01"),
+        "age": age,
+        "sex": patient_dict.get("sex", "Female"),
+        "phone": patient_dict.get("phone", "555-0199"),
+        "email": patient_dict.get("email", ""),
+        "address": patient_dict.get("address", "123 Clinical Way"),
+        "emergency_contact": patient_dict.get("emergency_contact", "Family / Next of Kin"),
+        "blood_group": patient_dict.get("blood_group", "O+"),
+        "race": patient_dict.get("race", "Caucasian"),
+        "ethnicity": patient_dict.get("ethnicity", "Non-Hispanic"),
+        "safety_badges": patient_dict.get("safety_badges", ["CLINICAL ADMISSION"]),
+        "current_ward": patient_dict.get("current_ward", "Ward 5B"),
+        "current_room": patient_dict.get("current_room", "5B-101"),
+        "admission_status": patient_dict.get("admission_status", "Inpatient"),
+        "primary_diagnosis": patient_dict.get("primary_diagnosis", "Observation & Workup"),
+        "risk_probability": risk_p,
+        "risk_level": risk_level,
+        "length_of_stay": 1,
+        "attending_physician": patient_dict.get("attending_physician", "Dr. Sarah Mitchell, MD"),
+        "expected_discharge": "Scheduled in 3 days",
+        "care_coordinator": "Emma Davis, RN",
+        "intervention_status": "Active Monitoring",
+        "main_risk_driver": "New Inpatient Glycemic & Vital Stabilization",
+        "created_at": now_iso,
+        "updated_at": now_iso
+    }
+    
+    # 1. Persist in MongoDB patients collection
+    db["patients"].insert_one(patient_doc)
+    
+    # 2. Persist initial encounter in MongoDB encounters collection
+    enc_id = int(time.time() % 10000000) + random.randint(100, 999)
+    encounter_doc = {
+        "id": enc_id,
+        "encounter_id": f"ENC-{enc_id}",
+        "patient_id": new_id,
+        "admission_date": datetime.date.today().isoformat(),
+        "discharge_date": None,
+        "encounter_type": patient_dict.get("encounter_type", "Inpatient Admission"),
+        "department": patient_dict.get("department", "Internal Medicine"),
+        "ward": patient_doc["current_ward"],
+        "room": patient_doc["current_room"],
+        "attending_physician": patient_doc["attending_physician"],
+        "primary_diagnosis": patient_doc["primary_diagnosis"],
+        "secondary_diagnoses": ["Essential Hypertension", "Hyperlipidemia"],
+        "length_of_stay": 1,
+        "admission_source": patient_dict.get("admission_source", "Emergency Department"),
+        "admission_type": patient_dict.get("admission_type", "Urgent"),
+        "discharge_disposition": "Under Inpatient Care",
+        "readmission_status": "NO",
+        "is_current": True
+    }
+    db["encounters"].insert_one(encounter_doc)
+    
+    # 3. Persist primary diagnosis in MongoDB diagnoses collection
+    db["diagnoses"].insert_one({
+        "id": 1,
+        "patient_id": new_id,
+        "encounter_id": enc_id,
+        "icd_code": "250.00",
+        "description": patient_doc["primary_diagnosis"],
+        "diagnosis_type": "Primary",
+        "status": "Active",
+        "severity": "Moderate",
+        "is_active": True,
+        "diagnosed_at": datetime.date.today().isoformat(),
+        "clinician": patient_doc["attending_physician"]
+    })
+    
+    # 4. Persist initial vitals in MongoDB observations collection
+    db["observations"].insert_one({
+        "id": 1,
+        "patient_id": new_id,
+        "encounter_id": enc_id,
+        "code": "BP",
+        "name": "Blood Pressure",
+        "value": 130.0,
+        "value_string": "130/84 mmHg",
+        "unit": "mmHg",
+        "status": "Normal",
+        "recorded_at": now_iso
+    })
+    db["observations"].insert_one({
+        "id": 2,
+        "patient_id": new_id,
+        "encounter_id": enc_id,
+        "code": "GLU",
+        "name": "Blood Glucose",
+        "value": 165.0,
+        "value_string": "165 mg/dL",
+        "unit": "mg/dL",
+        "status": "Elevated",
+        "recorded_at": now_iso
+    })
+    
+    # 5. Persist initial clinical note in MongoDB notes collection
+    db["notes"].insert_one({
+        "id": 1,
+        "patient_id": new_id,
+        "note_type": "History & Physical (H&P)",
+        "author": patient_doc["attending_physician"],
+        "author_role": "Attending Physician",
+        "created_at": now_iso,
+        "content": f"Initial hospital admission workup for {patient_doc['first_name']} {patient_doc['last_name']}. Primary diagnosis: {patient_doc['primary_diagnosis']}. Full CDS readmission risk surveillance active."
+    })
+    
+    # Register in in-memory dataset cache for instant query availability
+    dataset_service.id_lookup[new_id] = patient_doc
+    dataset_service.encounter_lookup[new_id] = patient_doc
+    
+    log_audit_event(
+        db=db,
+        user=current_user,
+        action="PATIENT_CREATED",
+        resource="patients",
+        patient_id=new_id
+    )
+    
+    return ApiResponse(
+        success=True,
+        data=PatientDetail(**patient_doc),
+        message=f"Patient {patient_doc['first_name']} {patient_doc['last_name']} registered successfully"
+    )
+
+
 @router.patch("/{patient_id}", response_model=ApiResponse[PatientDetail])
+
 def update_patient(
     patient_id: int,
     patient_update: PatientUpdate,

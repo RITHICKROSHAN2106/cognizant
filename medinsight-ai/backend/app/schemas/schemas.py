@@ -98,6 +98,10 @@ class PatientCreate(BaseModel):
     known_allergies: Optional[str] = None
     active_medications: Optional[str] = None
 
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
 
 class PatientUpdate(BaseModel):
     first_name: Optional[str] = None
@@ -117,6 +121,11 @@ class PatientUpdate(BaseModel):
     current_room: Optional[str] = None
     admission_status: Optional[str] = None
     primary_diagnosis: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
 
 
 class PatientSummary(PatientBase):
