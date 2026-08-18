@@ -49,7 +49,7 @@ def query_dataset_patients(
     )
 
     # Merge dynamic count of registered clinical patients from MongoDB
-    if db:
+    if db is not None:
         try:
             import math
             q_filter = {"record_source": "CLINICAL_REGISTRATION"}
@@ -129,7 +129,7 @@ def check_duplicate_patient(
     seen_ids = set()
 
     # 1. Search in MongoDB Active Records
-    if db:
+    if db is not None:
         or_clauses = []
         if mrn:
             or_clauses.append({"mrn": mrn})
@@ -200,7 +200,7 @@ def list_patients(
     seen_ids = set()
 
     # 1. Fetch newly registered MongoDB patients first
-    if db:
+    if db is not None:
         query_filter: Dict[str, Any] = {"record_source": "CLINICAL_REGISTRATION"}
         if risk_level:
             query_filter["risk_level"] = risk_level
@@ -290,7 +290,7 @@ def get_high_risk_patients(
     seen_ids = set()
 
     # 1. Fetch registered high-risk patients
-    if db:
+    if db is not None:
         reg_query: Dict[str, Any] = {"record_source": "CLINICAL_REGISTRATION"}
         if filter_type == "critical":
             reg_query["$or"] = [{"risk_level": "Critical"}, {"risk_probability": {"$gte": 0.70}}]
@@ -1012,7 +1012,7 @@ def get_encounter_risk_assessment(
     from app.ml.model_loader import get_model
 
     # 1. Resolve patient
-    patient_doc = db["patients"].find_one({"id": patient_id}) if db else None
+    patient_doc = db["patients"].find_one({"id": patient_id}) if db is not None else None
     if not patient_doc:
         patient_doc = dataset_service.get_patient_by_id(patient_id)
     if not patient_doc:
@@ -1023,7 +1023,7 @@ def get_encounter_risk_assessment(
 
     # 2. Resolve encounter
     enc = None
-    all_encs = list(db["encounters"].find({"patient_id": patient_id})) if db else []
+    all_encs = list(db["encounters"].find({"patient_id": patient_id})) if db is not None else []
     for e in all_encs:
         if str(e.get("id")) == str(encounter_id) or str(e.get("encounter_id")) == str(encounter_id):
             enc = e

@@ -8,8 +8,11 @@ logger = logging.getLogger("medinsight.patient_repo")
 
 class PatientRepository:
     def __init__(self, db=None):
-        self.db = db or get_mongodb()
-        self.col = self.db["patients"]
+        self._db = db
+
+    @property
+    def col(self):
+        return (self._db if self._db is not None else get_mongodb())["patients"]
 
     def get_by_id(self, patient_id: int) -> Optional[Dict[str, Any]]:
         doc = self.col.find_one({"id": patient_id})

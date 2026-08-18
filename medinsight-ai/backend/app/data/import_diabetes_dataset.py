@@ -274,11 +274,47 @@ def import_dataset_to_mongodb(db, force_reimport: bool = False) -> Dict[str, Any
         patients_col.delete_many({"record_source": "UCI_DATASET"})
         encounters_col.delete_many({"record_source": "UCI_DATASET"})
 
-    logger.info(f"Inserting {len(patients_to_insert):,} unique patients into MongoDB 'patients' collection...")
-    patients_col.insert_many(patients_to_insert)
+    logger.info(f"Upserting {len(patients_to_insert):,} unique patients into MongoDB 'patients' collection...")
 
-    logger.info(f"Inserting {len(encounters_to_insert):,} encounters into MongoDB 'encounters' collection...")
-    encounters_col.insert_many(encounters_to_insert)
+    # Detect whether we have a real PyMongo collection (supports bulk_write) or MemoryDocumentCollection
+    try:
+        from pymongo import UpdateOne
+        from pymongo.collection import Collection as PyMongoCollection
+        is_real_mongo = isinstance(patients_col, PyMongoCollection)
+    except ImportError:
+        is_real_mongo = False
+
+    if is_real_mongo:
+        # Real MongoDB: use bulk_write with upserts for maximum performance
+        from pymongo import UpdateOne
+        BATCH = 2000
+
+        patient_ops = [
+            UpdateOne(
+                {"source_patient_id": p["source_patient_id"]},
+                {"$set": p},
+                upsert=True
+            )
+            for p in patients_to_insert
+        ]
+        for i in range(0, len(patient_ops), BATCH):
+            patients_col.bulk_write(patient_ops[i:i + BATCH], ordered=False)
+
+        encounter_ops = [
+            UpdateOne(
+                {"source_encounter_id": e["source_encounter_id"]},
+                {"$set": e},
+                upsert=True
+            )
+            for e in encounters_to_insert
+        ]
+        for i in range(0, len(encounter_ops), BATCH):
+            encounters_col.bulk_write(encounter_ops[i:i + BATCH], ordered=False)
+
+    else:
+        # MemoryDocumentDatabase fallback: insert_many is sufficient (no real persistence)
+        patients_col.insert_many(patients_to_insert)
+        encounters_col.insert_many(encounters_to_insert)
 
     duration = (datetime.datetime.now() - t0).total_seconds()
     logger.info(f"Ingestion completed in {duration:.2f} seconds.")
@@ -287,7 +323,7 @@ def import_dataset_to_mongodb(db, force_reimport: bool = False) -> Dict[str, Any
     actual_encounters = encounters_col.count_documents({"record_source": "UCI_DATASET"})
 
     return {
-        "status": "COMPLETE" if (actual_patients == csv_unique_patients and actual_encounters == csv_total_rows) else "PARTIAL",
+        "status": "COMPLETE" if (actual_patients >= csv_unique_patients and actual_encounters >= csv_total_rows) else "PARTIAL",
         "csv_total_rows": csv_total_rows,
         "csv_unique_patients": csv_unique_patients,
         "mongodb_patients": actual_patients,

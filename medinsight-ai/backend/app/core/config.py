@@ -4,19 +4,19 @@ import os
 
 
 class Settings(BaseSettings):
-    # MongoDB Database Settings
+    # MongoDB Database Settings — configure via .env (never hardcode credentials here)
     MONGODB_URI: Optional[str] = None
-    MONGODB_URL: Optional[str] = "mongodb+srv://Roshan2106:1234@cognizant.mhj2q40.mongodb.net/?appName=Cognizant"
-    MONGODB_DATABASE: Optional[str] = None
-    MONGODB_DB_NAME: str = "medinsight_db"
+    MONGODB_DATABASE: str = "medinsight"
 
     @property
     def mongo_connection_uri(self) -> str:
-        return self.MONGODB_URI or self.MONGODB_URL or "mongodb://localhost:27017"
+        """Returns the MongoDB connection URI from environment. Falls back to localhost."""
+        return self.MONGODB_URI or "mongodb://localhost:27017"
 
     @property
     def mongo_db_name(self) -> str:
-        return self.MONGODB_DATABASE or self.MONGODB_DB_NAME or "medinsight"
+        """Returns the target MongoDB database name."""
+        return self.MONGODB_DATABASE or "medinsight"
 
     # JWT Authentication
     JWT_SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production-min-32-chars"

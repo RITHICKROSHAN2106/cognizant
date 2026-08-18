@@ -124,7 +124,7 @@ class PredictionService:
             confidence_interval=[max(0.0, round(prob - 0.04, 3)), min(1.0, round(prob + 0.04, 3))]
         )
 
-        if db and input_data.patient_id:
+        if db is not None and input_data.patient_id:
             try:
                 db["patients"].update_one(
                     {"id": input_data.patient_id},

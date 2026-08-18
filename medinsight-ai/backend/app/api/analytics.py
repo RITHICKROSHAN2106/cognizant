@@ -14,14 +14,14 @@ def get_readmission_analytics(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     # Calculate real-time counts from MongoDB
-    custom_patients_count = db["patients"].count_documents({"record_source": "CLINICAL_REGISTRATION"}) if db else 0
+    custom_patients_count = db["patients"].count_documents({"record_source": "CLINICAL_REGISTRATION"}) if db is not None else 0
     total_patients_live = 71518 + custom_patients_count
     total_encounters_live = 101766 + custom_patients_count
     
-    critical_cnt = db["patients"].count_documents({"risk_level": "Critical"}) if db else 0
-    high_cnt = db["patients"].count_documents({"risk_level": "High"}) if db else 0
-    mod_cnt = db["patients"].count_documents({"risk_level": "Moderate"}) if db else 0
-    low_cnt = db["patients"].count_documents({"risk_level": "Low"}) if db else 0
+    critical_cnt = db["patients"].count_documents({"risk_level": "Critical"}) if db is not None else 0
+    high_cnt = db["patients"].count_documents({"risk_level": "High"}) if db is not None else 0
+    mod_cnt = db["patients"].count_documents({"risk_level": "Moderate"}) if db is not None else 0
+    low_cnt = db["patients"].count_documents({"risk_level": "Low"}) if db is not None else 0
 
     # Get deep analytics from 101,766 dataset records
     pop = dataset_service.get_population_analytics()

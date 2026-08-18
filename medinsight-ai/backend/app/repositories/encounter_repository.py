@@ -7,8 +7,11 @@ logger = logging.getLogger("medinsight.encounter_repo")
 
 class EncounterRepository:
     def __init__(self, db=None):
-        self.db = db or get_mongodb()
-        self.col = self.db["encounters"]
+        self._db = db
+
+    @property
+    def col(self):
+        return (self._db if self._db is not None else get_mongodb())["encounters"]
 
     def get_by_id(self, encounter_id: int) -> Optional[Dict[str, Any]]:
         doc = self.col.find_one({"id": encounter_id})

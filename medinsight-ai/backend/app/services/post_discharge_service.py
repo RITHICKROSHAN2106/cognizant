@@ -19,14 +19,14 @@ class PostDischargeService:
         Retrieves or generates a complete post-discharge continuity plan for a patient.
         """
         # 1. Check MongoDB persistence first
-        if db:
+        if db is not None:
             plan = db["post_discharge_care_plans"].find_one({"patient_id": patient_id})
             if plan:
                 return plan
 
         # 2. Derive from dataset & clinical defaults
         patient = None
-        if db:
+        if db is not None:
             patient = db["patients"].find_one({"id": patient_id})
         if not patient:
             patient = dataset_service.get_patient_by_id(patient_id)
@@ -295,7 +295,7 @@ class PostDischargeService:
         }
 
         # Auto-persist in MongoDB if available
-        if db:
+        if db is not None:
             db["post_discharge_care_plans"].update_one(
                 {"patient_id": patient_id},
                 {"$set": plan_doc},
@@ -414,7 +414,7 @@ class PostDischargeService:
         and recording a 30-day readmission event without duplicating patient identity.
         """
         patient = None
-        if db:
+        if db is not None:
             patient = db["patients"].find_one({"id": patient_id})
         if not patient:
             patient = dataset_service.get_patient_by_id(patient_id)
@@ -471,7 +471,7 @@ class PostDischargeService:
             "recorded_at": datetime.datetime.utcnow().isoformat()
         }
 
-        if db:
+        if db is not None:
             db["encounters"].insert_one(new_encounter)
             db["readmission_events"].insert_one(readmission_event)
             db["patients"].update_one(

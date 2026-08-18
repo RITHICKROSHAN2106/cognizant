@@ -29,7 +29,7 @@ class ClinicalContextBuilder:
         """
         # 1. Resolve Patient Record from DB or Dataset
         patient = None
-        if db:
+        if db is not None:
             patient = db["patients"].find_one({"id": patient_id})
         if not patient:
             patient = dataset_service.get_patient_by_id(patient_id)
@@ -82,7 +82,7 @@ class ClinicalContextBuilder:
 
         if context_type in ["VITALS", "GENERAL_SUMMARY"]:
             vitals = dataset_service.get_patient_vitals(patient_id)
-            if db:
+            if db is not None:
                 db_vitals = list(db["observations"].find({"patient_id": patient_id}))
                 if db_vitals:
                     vitals = db_vitals

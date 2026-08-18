@@ -1,4 +1,5 @@
 import datetime
+import time
 from fastapi import APIRouter, Depends
 from typing import List, Dict, Any
 from app.database.mongodb import get_mongodb, mongodb_manager
@@ -10,25 +11,70 @@ from app.core.config import settings
 router = APIRouter(prefix="/system", tags=["System Health & Architecture Status"])
 
 
+def _ping_mongodb(db) -> dict:
+    """Perform a real MongoDB ping and return status details."""
+    # MemoryDocumentDatabase has _collections attribute — detect it first
+    if hasattr(db, '_collections'):
+        return {
+            "status": "fallback",
+            "connection_type": "High-Performance Document Store (local JSON)",
+            "database": settings.MONGODB_DATABASE,
+            "latency_ms": 0,
+            "ping_ok": True,
+            "note": "NOT connected to MongoDB Atlas — check MONGODB_URI in .env"
+        }
+
+    try:
+        t0 = time.perf_counter()
+        result = db.command("ping")
+        latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+        ok = int(result.get("ok", 0)) == 1
+        conn_type = "MongoDB Atlas" if mongodb_manager.is_atlas else "MongoDB Local"
+        return {
+            "status": "healthy" if ok else "unhealthy",
+            "connection_type": conn_type,
+            "database": settings.MONGODB_DATABASE,
+            "latency_ms": latency_ms,
+            "ping_ok": ok
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "connection_type": "unknown",
+            "database": settings.MONGODB_DATABASE,
+            "latency_ms": -1,
+            "ping_ok": False,
+            "error": str(e)
+        }
+
+
 @router.get("/health", response_model=ApiResponse[SystemHealthResponse])
 def get_system_health(db=Depends(get_mongodb)):
-    db_status = "healthy (MongoDB Atlas / High-Performance Document Store)"
+    mongo_info = _ping_mongodb(db)
+    db_status = f"{mongo_info['status']} ({mongo_info['connection_type']})"
     ml_status = "healthy" if model_loader.model else "degraded"
     ext_health = external_api_service.check_health()
 
+    # Get real collection count from DB
+    try:
+        collection_count = len(db.list_collection_names()) if hasattr(db, "list_collection_names") else 0
+    except Exception:
+        collection_count = 0
+
     integrations = [
         IntegrationItem(
-            name="MongoDB Atlas Clinical Database",
-            service_name="MongoDB Primary Cluster (Cognizant Atlas)",
+            name="MongoDB Clinical Database",
+            service_name=mongo_info["connection_type"],
             type="Document Database / NoSQL",
-            status="Connected",
-            latency_ms=4,
+            status="Connected" if mongo_info["ping_ok"] else "Disconnected",
+            latency_ms=int(mongo_info.get("latency_ms", 0)),
             last_request="Just now",
-            last_sync="Live replica-set sync",
+            last_sync="Live" if mongodb_manager.is_atlas else "Local storage",
             details={
-                "engine": "MongoDB v7.0 / PyMongo",
-                "database": settings.MONGODB_DB_NAME,
-                "collections": len(db.list_collection_names()) if hasattr(db, "list_collection_names") else 14
+                "engine": "MongoDB v7.0 / PyMongo" if mongodb_manager.is_atlas else "MemoryDocumentDatabase",
+                "database": settings.MONGODB_DATABASE,
+                "collections": collection_count,
+                "ping_ok": mongo_info["ping_ok"]
             }
         ),
         IntegrationItem(

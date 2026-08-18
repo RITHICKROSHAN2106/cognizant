@@ -370,29 +370,50 @@ class MongoDBManager:
         mongo_uri = settings.mongo_connection_uri
         db_name = settings.mongo_db_name
 
-        if mongo_uri and MongoClient and "mongodb+srv" not in mongo_uri and "27017" in mongo_uri:
+        # Safe host-only log (never log full URI with credentials)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(mongo_uri)
+            safe_host = parsed.hostname or "unknown"
+        except Exception:
+            safe_host = "configured"
+
+        logger.info(f"Connecting to MongoDB | host={safe_host} | database={db_name}")
+
+        if mongo_uri and MongoClient:
             try:
-                self.client = MongoClient(
-                    mongo_uri,
-                    serverSelectionTimeoutMS=2000,
-                    connectTimeoutMS=2000,
-                    socketTimeoutMS=2000,
+                # Support both localhost (mongodb://) and Atlas (mongodb+srv://) URIs
+                connect_kwargs = dict(
+                    serverSelectionTimeoutMS=8000,
+                    connectTimeoutMS=8000,
+                    socketTimeoutMS=15000,
                     maxPoolSize=50,
-                    minPoolSize=5
+                    minPoolSize=5,
                 )
-                self.client.admin.command('ping')
+                # Atlas SRV connections need TLS; pymongo handles this automatically
+                # but we must NOT override tlsAllowInvalidCertificates for production
+                self.client = MongoClient(mongo_uri, **connect_kwargs)
+                # Perform real ping to confirm connectivity before accepting
+                self.client.admin.command("ping")
                 self.db = self.client[db_name]
-                self.is_atlas = True
-                logger.info(f"Connected to MongoDB ({db_name}) via persistent connection pool.")
+                self.is_atlas = "mongodb+srv" in mongo_uri
+                conn_type = "MongoDB Atlas" if self.is_atlas else "MongoDB Local"
+                logger.info(f"✅ Connected to {conn_type} | database={db_name}")
                 self.ensure_indexes()
                 return
             except Exception as e:
-                logger.warning(f"MongoDB connection notice ({e}). Using High-Performance Document Store.")
+                logger.warning(
+                    f"⚠️  MongoDB connection failed ({type(e).__name__}: {e}). "
+                    f"Falling back to High-Performance Document Store."
+                )
 
-        # Fallback to persistent high-performance document store
+        # Fallback to persistent high-performance document store (local JSON files)
         self.db = MemoryDocumentDatabase(db_name)
         self.is_atlas = False
-        logger.info(f"Active database: High-Performance Document Store ({db_name}).")
+        logger.warning(
+            f"🟡 Using local High-Performance Document Store ('{db_name}'). "
+            f"Data is NOT persisted to MongoDB Atlas — check MONGODB_URI in .env"
+        )
         self.ensure_indexes()
 
     def ensure_indexes(self):

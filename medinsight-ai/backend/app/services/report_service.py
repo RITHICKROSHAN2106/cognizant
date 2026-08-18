@@ -106,18 +106,20 @@ class PatientReportService:
 
         prediction = db["predictions"].find_one({"patient_id": pid})
 
+        from app.database.mongodb import serialize_doc, serialize_docs
+
         return {
-            "patient": patient,
-            "encounters": encounters or [],
-            "diagnoses": diagnoses or [],
-            "vitals": vitals or [],
-            "labs": labs or [],
-            "medications": medications or [],
-            "allergies": allergies or [],
-            "procedures": procedures or [],
-            "notes": notes or [],
-            "discharge_plan": discharge_plan,
-            "prediction": prediction,
+            "patient": serialize_doc(patient),
+            "encounters": serialize_docs(encounters or []),
+            "diagnoses": serialize_docs(diagnoses or []),
+            "vitals": serialize_docs(vitals or []),
+            "labs": serialize_docs(labs or []),
+            "medications": serialize_docs(medications or []),
+            "allergies": serialize_docs(allergies or []),
+            "procedures": serialize_docs(procedures or []),
+            "notes": serialize_docs(notes or []),
+            "discharge_plan": serialize_doc(discharge_plan),
+            "prediction": serialize_doc(prediction),
             "report_generated_at": datetime.datetime.utcnow().isoformat(),
             "generated_by": "Dr. Sarah Mitchell, MD (Attending Physician)"
         }
@@ -636,7 +638,7 @@ class PatientReportService:
         seen_ids = set()
 
         # 1. Custom Registered Patients from MongoDB
-        if db:
+        if db is not None:
             q_filter = {"record_source": "CLINICAL_REGISTRATION"}
             if risk_level and risk_level != "All":
                 q_filter["risk_level"] = risk_level
