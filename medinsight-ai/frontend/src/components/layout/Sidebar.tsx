@@ -152,11 +152,11 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-sky-400 shrink-0">
-                {user?.name ? user.name[0] : 'U'}
+                {user?.full_name ? user.full_name[0] : (user?.username ? user.username[0].toUpperCase() : 'U')}
               </div>
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-white truncate">
-                  {user?.name || 'Clinical User'}
+                  {user?.full_name || user?.username || 'Clinical User'}
                 </div>
                 <div className="text-[9px] text-slate-400 uppercase tracking-wider truncate font-medium">
                   {user?.role ? user.role.replace('_', ' ') : 'Staff'}

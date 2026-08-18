@@ -43,8 +43,10 @@ export const RiskAssessmentPage: React.FC = () => {
   }>();
   const navigate = useNavigate();
 
-  const patientId = Number(paramPatientId) || 1;
-  const encounterId = paramEncounterId || '1';
+  const [activePatientId, setActivePatientId] = useState<number | null>(
+    paramPatientId ? Number(paramPatientId) : null
+  );
+  const encounterId = paramEncounterId || 'latest';
 
   // Data states
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -70,22 +72,42 @@ export const RiskAssessmentPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      setLoadingStep('Resolving inpatient record from database...');
+      let targetId = activePatientId;
+      if (!targetId) {
+        const pts = await patientService.getPatients();
+        if (pts && pts.length > 0) {
+          targetId = pts[0].id;
+          setActivePatientId(targetId);
+        } else {
+          const dsRes = await patientService.queryDatasetPatients({ page: 1, page_size: 1 });
+          if (dsRes.items && dsRes.items.length > 0) {
+            targetId = dsRes.items[0].id;
+            setActivePatientId(targetId);
+          }
+        }
+      }
+
+      if (!targetId) {
+        throw new Error('No active inpatient records available for risk scoring.');
+      }
+
       setLoadingStep('Retrieving encounter data from database...');
-      const p = await patientService.getPatientById(patientId);
+      const p = await patientService.getPatientById(targetId);
       setPatient(p);
 
       setLoadingStep('Preparing model feature vector (zero-leakage schema)...');
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 120));
 
       setLoadingStep('Running calibrated LightGBM + XGBoost inference...');
-      const resp = await apiClient.get(`/patients/${patientId}/encounters/${encounterId}/risk`);
+      const resp = await apiClient.get(`/patients/${targetId}/encounters/${encounterId}/risk`);
       setRiskData(resp.data?.data);
 
       setLoadingStep('Loading SHAP feature explanations...');
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 100));
     } catch (err: any) {
       console.error('Failed to load risk assessment:', err);
-      const msg = err.response?.data?.detail || err.response?.data?.error?.message || 'Readmission prediction unavailable. The trained model could not be loaded.';
+      const msg = err.response?.data?.detail || err.response?.data?.error?.message || err?.message || 'Readmission prediction unavailable.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -94,7 +116,7 @@ export const RiskAssessmentPage: React.FC = () => {
 
   useEffect(() => {
     fetchRiskAssessment();
-  }, [patientId, encounterId]);
+  }, [paramPatientId, encounterId]);
 
   const handleReScore = async () => {
     setIsScoring(true);
@@ -109,10 +131,12 @@ export const RiskAssessmentPage: React.FC = () => {
     }
   };
 
+  const currentPatientId = activePatientId || patient?.id || 1;
+
   const handleRunSimulation = async () => {
     setIsSimulating(true);
     try {
-      const resp = await apiClient.post(`/patients/${patientId}/simulate-risk`, simulation);
+      const resp = await apiClient.post(`/patients/${currentPatientId}/simulate-risk`, simulation);
       setSimulationResult(resp.data?.data);
     } catch (err) {
       console.error('Simulation error:', err);
@@ -126,7 +150,7 @@ export const RiskAssessmentPage: React.FC = () => {
       <div className="space-y-6 max-w-6xl mx-auto pb-12">
         <div className="flex items-center gap-2 mb-4">
           <button
-            onClick={() => navigate(`/ehr/${patientId}`)}
+            onClick={() => navigate(`/ehr/${currentPatientId}`)}
             className="p-1.5 bg-white border border-slate-300 rounded text-slate-700 hover:bg-slate-50 transition"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -155,7 +179,7 @@ export const RiskAssessmentPage: React.FC = () => {
         <p className="text-xs text-slate-600 max-w-md mx-auto">{error || 'The trained model could not be loaded.'}</p>
         <div className="flex items-center justify-center gap-3 pt-2">
           <button
-            onClick={() => navigate(`/ehr/${patientId}`)}
+            onClick={() => navigate(`/ehr/${currentPatientId}`)}
             className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
             Return to EHR
@@ -216,7 +240,7 @@ export const RiskAssessmentPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(`/ehr/${patientId}`)}
+            onClick={() => navigate(`/ehr/${currentPatientId}`)}
             className="p-1.5 bg-white border border-slate-300 rounded text-slate-700 hover:bg-slate-100 transition"
             title="Return to Patient EHR"
           >
@@ -251,7 +275,7 @@ export const RiskAssessmentPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/ehr/${patientId}?tab=discharge`)}
+            onClick={() => navigate(`/ehr/${currentPatientId}?tab=discharge`)}
             className="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-bold transition shadow-xs"
           >
             Discharge Planning

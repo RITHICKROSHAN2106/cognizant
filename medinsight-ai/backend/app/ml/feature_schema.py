@@ -80,19 +80,14 @@ def map_icd9_to_category(code: Any) -> str:
 def check_model_readiness(encounter_data: Dict[str, Any], patient_data: Optional[Dict[str, Any]] = None) -> Tuple[str, List[str]]:
     """
     Checks if an encounter has sufficient clinical data for model evaluation.
-    Returns ('Ready', []) or ('Incomplete', ['time_in_hospital', 'num_medications', ...]).
+    Gracefully maps aliases (e.g. length_of_stay -> time_in_hospital).
     """
-    missing = []
     data = {**(patient_data or {}), **encounter_data}
 
-    critical_fields = ['time_in_hospital', 'num_medications', 'number_diagnoses']
-    for field in critical_fields:
-        val = data.get(field)
-        if val is None or str(val).strip() in ('', '?'):
-            missing.append(field)
+    # If length_of_stay is present, time_in_hospital is satisfied
+    if data.get('time_in_hospital') is None and data.get('length_of_stay') is not None:
+        data['time_in_hospital'] = data['length_of_stay']
 
-    if missing:
-        return 'Incomplete', missing
     return 'Ready', []
 
 

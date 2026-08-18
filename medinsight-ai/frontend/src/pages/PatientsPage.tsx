@@ -109,7 +109,7 @@ export const PatientsPage: React.FC = () => {
           </div>
 
           <button
-            onClick={() => navigate('/add-patient')}
+            onClick={() => navigate('/patients/new')}
             className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Users className="w-3.5 h-3.5" />
@@ -279,17 +279,23 @@ export const PatientsPage: React.FC = () => {
                   const riskVal = Math.round((p.risk_probability ?? 0.5) * 100);
                   const isCritical = (p.risk_probability ?? 0) >= 0.70;
                   const isHigh = (p.risk_probability ?? 0) >= 0.45 && !isCritical;
+                  const isCustom = Boolean((p as any).is_custom_registration);
                   
                   return (
                     <tr
                       key={p.id}
                       onClick={() => navigate(`/ehr/${p.id}`)}
-                      className="hover:bg-sky-50/40 transition cursor-pointer group"
+                      className={`hover:bg-sky-50/40 transition cursor-pointer group ${isCustom ? 'bg-sky-50/20' : ''}`}
                     >
                       {/* Patient & MRN */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 group-hover:text-sky-700 transition flex items-center gap-1.5">
                           <span>{p.first_name} {p.last_name}</span>
+                          {isCustom && (
+                            <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase tracking-wider">
+                              Live Admission
+                            </span>
+                          )}
                           <span className="text-[10px] font-mono text-slate-400">#{p.encounter_id}</span>
                         </div>
                         <div className="text-[11px] text-slate-500 font-mono mt-0.5">

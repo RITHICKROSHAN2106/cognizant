@@ -68,6 +68,7 @@ export function App() {
                 <Route index element={<ClinicalOverviewPage />} />
                 <Route path="patients" element={<PatientsPage />} />
                 <Route path="patients/new" element={<AddPatientPage />} />
+                <Route path="add-patient" element={<AddPatientPage />} />
                 <Route path="post-discharge" element={<PostDischargePage />} />
                 <Route path="patients/:id" element={<PatientEhrPage />} />
                 <Route path="patients/:patientId/encounters/:encounterId/risk" element={<RiskAssessmentPage />} />
