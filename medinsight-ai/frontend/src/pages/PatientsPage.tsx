@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users,
   Search,
@@ -25,6 +25,8 @@ import { patientService } from '../services/patientService';
 import { DatasetPatient, DatasetQueryResult } from '../types/clinical';
 
 export const PatientsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [datasetData, setDatasetData] = useState<DatasetQueryResult | null>(null);
   
   // Dataset pagination & filters
@@ -40,6 +42,12 @@ export const PatientsPage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'search') {
+      searchInputRef.current?.focus();
+    }
+  }, [searchParams]);
 
   // Load 1-Lakh Dataset (101,766 Encounters)
   useEffect(() => {
@@ -156,6 +164,7 @@ export const PatientsPage: React.FC = () => {
           <div className="relative flex-1 min-w-[280px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
+              ref={searchInputRef}
               type="text"
               value={search}
               onChange={(e) => {

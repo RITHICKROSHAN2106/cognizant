@@ -154,23 +154,11 @@ class EnterpriseDatasetService:
         self.df['age_num'] = self.df['age'].apply(parse_age_to_int)
         self.df['diag_desc'] = self.df['diag_1'].apply(map_icd9_description)
 
-        # Deterministic Name Generation based on patient_nbr
-        def get_patient_name(row):
-            pn = int(row['patient_nbr'])
-            gender = str(row['gender']).lower()
-            last_idx = pn % len(LAST_NAMES)
-            if 'female' in gender:
-                first_idx = (pn // 7) % len(FIRST_NAMES_FEMALE)
-                first_name = FIRST_NAMES_FEMALE[first_idx]
-            else:
-                first_idx = (pn // 7) % len(FIRST_NAMES_MALE)
-                first_name = FIRST_NAMES_MALE[first_idx]
-            return first_name, LAST_NAMES[last_idx]
-
-        names = [get_patient_name(r) for _, r in self.df[['patient_nbr', 'gender']].iterrows()]
-        self.df['first_name'] = [n[0] for n in names]
-        self.df['last_name'] = [n[1] for n in names]
-        self.df['full_name'] = self.df['first_name'] + " " + self.df['last_name']
+        # Standardized Clinical Identifier without invented names
+        self.df['first_name'] = "PT-" + self.df['patient_nbr'].astype(str)
+        self.df['last_name'] = "Record"
+        self.df['display_name'] = "Patient PT-" + self.df['patient_nbr'].astype(str)
+        self.df['full_name'] = "Patient PT-" + self.df['patient_nbr'].astype(str)
         self.df['mrn'] = "MRN-" + self.df['patient_nbr'].astype(str)
 
         # Calibrated 30-Day Readmission Risk Estimation formula for all 101,766 records
@@ -270,58 +258,64 @@ class EnterpriseDatasetService:
         }
 
     def _format_patient_dict(self, r: Any) -> Dict[str, Any]:
-        p_id = int(r['encounter_id'])
-        risk_p = float(r['risk_probability'])
+        p_nbr = int(r.get('patient_nbr', r.get('encounter_id', 1)))
+        enc_id = int(r.get('encounter_id', p_nbr))
+        p_id = p_nbr
+        risk_p = float(r.get('risk_probability', 0.35))
+        time_in_hosp = int(r.get('time_in_hospital', 3))
+        num_meds = int(r.get('num_medications', 10))
+
         ward = "Ward 5B" if risk_p >= 0.7 else "Ward 4A" if risk_p >= 0.45 else "Ward 3B"
-        room = f"{r['time_in_hospital']}A-{r['encounter_id'] % 500 + 100}"
-        
+        room = f"{time_in_hosp}A-{enc_id % 500 + 100}"
+
         badges = ["Diabetes"]
         if risk_p >= 0.7:
             badges.append("Critical Readmission Risk")
         elif risk_p >= 0.45:
             badges.append("High Readmission Risk")
-        if r['num_medications'] >= 18:
+        if num_meds >= 18:
             badges.append("Polypharmacy")
-        if r['time_in_hospital'] >= 7:
+        if time_in_hosp >= 7:
             badges.append("Extended Stay")
 
         return {
             "id": p_id,
-            "encounter_id": int(r['encounter_id']),
-            "patient_nbr": int(r['patient_nbr']),
-            "mrn": str(r['mrn']),
-            "first_name": str(r['first_name']),
-            "last_name": str(r['last_name']),
-            "full_name": str(r['full_name']),
-            "dob": f"19{max(20, 90 - int(r['age_num']))}-04-12",
-            "age": int(r['age_num']),
-            "age_group": str(r['age']),
-            "sex": "Female" if "female" in str(r['gender']).lower() else "Male",
-            "blood_group": "O+" if (int(r['patient_nbr']) % 3 == 0) else "A+" if (int(r['patient_nbr']) % 3 == 1) else "B+",
-            "race": str(r['race']) if str(r['race']) != '?' else 'Caucasian',
+            "encounter_id": enc_id,
+            "patient_nbr": p_nbr,
+            "mrn": str(r.get('mrn', f"MRN-{p_nbr}")),
+            "first_name": str(r.get('first_name', f"PT-{p_nbr}")),
+            "last_name": str(r.get('last_name', "Record")),
+            "display_name": str(r.get('display_name', f"Patient PT-{p_nbr}")),
+            "full_name": str(r.get('full_name', f"Patient PT-{p_nbr}")),
+            "dob": f"19{max(20, 90 - int(r.get('age_num', 65)))}-04-12",
+            "age": int(r.get('age_num', 65)),
+            "age_group": str(r.get('age', '[60-70)')),
+            "sex": "Female" if "female" in str(r.get('gender', 'female')).lower() else "Male",
+            "blood_group": "O+" if (p_nbr % 3 == 0) else "A+" if (p_nbr % 3 == 1) else "B+",
+            "race": str(r.get('race', 'Caucasian')) if str(r.get('race')) != '?' else 'Caucasian',
             "ethnicity": "Non-Hispanic",
             "safety_badges": badges,
             "current_ward": ward,
             "current_room": room,
             "admission_status": "Inpatient",
-            "primary_diagnosis": str(r['diag_desc']),
-            "diag_1": str(r['diag_1']),
-            "time_in_hospital": int(r['time_in_hospital']),
-            "length_of_stay": int(r['time_in_hospital']),
-            "num_lab_procedures": int(r['num_lab_procedures']),
-            "num_procedures": int(r['num_procedures']),
-            "num_medications": int(r['num_medications']),
-            "number_inpatient": int(r['number_inpatient']),
-            "number_emergency": int(r['number_emergency']),
-            "number_outpatient": int(r['number_outpatient']),
-            "number_diagnoses": int(r['number_diagnoses']),
-            "a1c_result": str(r['A1Cresult']),
-            "insulin": str(r['insulin']),
-            "change": str(r['change']),
-            "diabetes_med": str(r['diabetesMed']),
-            "readmitted_outcome": str(r['readmitted']),
+            "primary_diagnosis": str(r.get('diag_desc', 'Clinical Observation')),
+            "diag_1": str(r.get('diag_1', '250')),
+            "time_in_hospital": int(r.get('time_in_hospital', 3)),
+            "length_of_stay": int(r.get('time_in_hospital', 3)),
+            "num_lab_procedures": int(r.get('num_lab_procedures', 10)),
+            "num_procedures": int(r.get('num_procedures', 0)),
+            "num_medications": int(r.get('num_medications', 10)),
+            "number_inpatient": int(r.get('number_inpatient', 0)),
+            "number_emergency": int(r.get('number_emergency', 0)),
+            "number_outpatient": int(r.get('number_outpatient', 0)),
+            "number_diagnoses": int(r.get('number_diagnoses', 1)),
+            "a1c_result": str(r.get('A1Cresult', 'None')),
+            "insulin": str(r.get('insulin', 'No')),
+            "change": str(r.get('change', 'No')),
+            "diabetes_med": str(r.get('diabetesMed', 'No')),
+            "readmitted_outcome": str(r.get('readmitted', 'NO')),
             "risk_probability": risk_p,
-            "risk_level": str(r['risk_level']),
+            "risk_level": str(r.get('risk_level', 'Moderate')),
             "attending_physician": "Dr. Sarah Mitchell, MD",
             "expected_discharge": "Scheduled for Tomorrow"
         }

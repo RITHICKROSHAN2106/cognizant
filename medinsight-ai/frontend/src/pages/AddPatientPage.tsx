@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   UserPlus, Save, ArrowLeft, ArrowRight, AlertCircle, CheckCircle2,
   ShieldAlert, HeartPulse, Building2, User, Phone, MapPin, Pill,
@@ -11,6 +12,7 @@ import { PatientCreatePayload } from '../types/clinical';
 
 export const AddPatientPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,16 +223,60 @@ export const AddPatientPage: React.FC = () => {
     try {
       setLoading(true);
       const created = await patientService.createPatient(formData);
+      
+      // Auto-verify persistence in MongoDB
+      try {
+        const verified = await patientService.getPatientById(created.id);
+        if (!verified || !verified.mrn) {
+          throw new Error("Patient registration could not be verified in database.");
+        }
+      } catch (verifyErr) {
+        throw new Error("Patient registration could not be verified in database.");
+      }
+
+
+      // Invalidate TanStack query cache for instant synchronization across all clinical pages
+      queryClient.invalidateQueries({ queryKey: ['patients'] });
+      queryClient.invalidateQueries({ queryKey: ['dataset_patients'] });
+      queryClient.invalidateQueries({ queryKey: ['high_risk_patients'] });
+      queryClient.invalidateQueries({ queryKey: ['patient', created.id] });
+
       setSuccess(`Patient ${created.first_name} ${created.last_name} (${created.mrn}) successfully registered in database!`);
       setTimeout(() => {
         navigate(`/ehr/${created.id}`);
-      }, 1400);
+      }, 1200);
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || err?.message || 'Registration failed.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleCreateEncounterForExisting = async (existingId: number) => {
+    try {
+      setLoading(true);
+      await apiClient.post(`/patients/${existingId}/encounters`, {
+        admission_type: formData.admission_type || 'Urgent',
+        admission_source: formData.admission_source || 'Emergency Room',
+        encounter_type: formData.encounter_type || 'Inpatient Admission',
+        department: formData.department || 'Internal Medicine',
+        ward: formData.current_ward || 'Ward 5B',
+        room: formData.current_room || '5B-101',
+        primary_diagnosis: formData.primary_diagnosis || 'Inpatient Clinical Readmission',
+        attending_physician: formData.attending_physician || 'Dr. Sarah Mitchell'
+      });
+      queryClient.invalidateQueries({ queryKey: ['patients'] });
+      queryClient.invalidateQueries({ queryKey: ['patient', existingId] });
+      setSuccess(`New clinical encounter successfully attached to existing patient!`);
+      setShowDuplicateModal(false);
+      setTimeout(() => navigate(`/ehr/${existingId}`), 1000);
+    } catch (err: any) {
+      setError(err?.response?.data?.error?.message || err?.message || 'Failed to create encounter for existing patient');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const steps = [
     { num: 1, label: 'Identity' },
@@ -996,22 +1042,34 @@ export const AddPatientPage: React.FC = () => {
               The Master Patient Index found {duplicateMatches.length} existing record(s) matching this name or date of birth:
             </p>
 
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {duplicateMatches.map((m, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-900">{m.first_name} {m.last_name}</div>
-                    <div className="text-[11px] text-slate-500 font-mono">{m.mrn} • DOB: {m.dob}</div>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {duplicateMatches.map((m, idx) => {
+                const targetId = m.id || m.patient_id;
+                return (
+                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-slate-900">{m.name || `${m.first_name} ${m.last_name}`}</div>
+                      <div className="text-[11px] text-slate-500 font-mono">{m.mrn} • DOB: {m.dob} • Risk: {m.risk_level || 'Moderate'}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => { setShowDuplicateModal(false); navigate(`/ehr/${targetId}`); }}
+                        className="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded text-[11px] font-bold"
+                      >
+                        Open Patient
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCreateEncounterForExisting(targetId)}
+                        className="px-2.5 py-1 bg-sky-700 hover:bg-sky-800 text-white rounded text-[11px] font-bold"
+                      >
+                        Create New Encounter
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowDuplicateModal(false); navigate(`/ehr/${m.patient_id}`); }}
-                    className="px-2.5 py-1 bg-sky-700 text-white rounded text-[11px] font-bold hover:bg-sky-800"
-                  >
-                    Open Record
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">

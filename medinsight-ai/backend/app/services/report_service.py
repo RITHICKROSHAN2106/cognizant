@@ -59,34 +59,63 @@ class PatientReportService:
     @classmethod
     def get_full_report_data(cls, patient_id: int, db) -> Dict[str, Any]:
         from app.services.dataset_service import dataset_service
-        
-        patient = db["patients"].find_one({"id": patient_id})
+
+        patient = db["patients"].find_one({"id": patient_id}) or db["patients"].find_one({"source_patient_id": patient_id})
         if not patient:
             patient = dataset_service.get_patient_by_id(patient_id)
         if not patient:
             raise ValueError(f"Patient with ID {patient_id} not found")
 
-        encounters = list(db["encounters"].find({"patient_id": patient_id})) or dataset_service.get_patient_encounters(patient_id)
-        diagnoses = list(db["diagnoses"].find({"patient_id": patient_id})) or dataset_service.get_patient_diagnoses(patient_id)
-        vitals = list(db["observations"].find({"patient_id": patient_id})) or dataset_service.get_patient_vitals(patient_id)
-        labs = list(db["lab_results"].find({"patient_id": patient_id})) or dataset_service.get_patient_labs(patient_id)
-        medications = list(db["medications"].find({"patient_id": patient_id})) or dataset_service.get_patient_medications(patient_id)
-        allergies = list(db["allergies"].find({"patient_id": patient_id})) or dataset_service.get_patient_allergies(patient_id)
-        procedures = list(db["procedures"].find({"patient_id": patient_id})) or dataset_service.get_patient_procedures(patient_id)
-        notes = list(db["clinical_notes"].find({"patient_id": patient_id})) or dataset_service.get_patient_notes(patient_id)
-        discharge_plan = db["discharge_plans"].find_one({"patient_id": patient_id}) or dataset_service.get_patient_discharge_plan(patient_id)
-        prediction = db["predictions"].find_one({"patient_id": patient_id})
+        pid = patient.get("id", patient_id)
+
+        encounters = list(db["encounters"].find({"patient_id": pid}))
+        if not encounters:
+            encounters = dataset_service.get_patient_encounters(pid)
+
+        diagnoses = list(db["diagnoses"].find({"patient_id": pid}))
+        if not diagnoses:
+            diagnoses = dataset_service.get_patient_diagnoses(pid)
+
+        vitals = list(db["observations"].find({"patient_id": pid}))
+        if not vitals:
+            vitals = dataset_service.get_patient_vitals(pid)
+
+        labs = list(db["lab_results"].find({"patient_id": pid}))
+        if not labs:
+            labs = dataset_service.get_patient_labs(pid)
+
+        medications = list(db["medications"].find({"patient_id": pid}))
+        if not medications:
+            medications = dataset_service.get_patient_medications(pid)
+
+        allergies = list(db["allergies"].find({"patient_id": pid}))
+        if not allergies:
+            allergies = dataset_service.get_patient_allergies(pid)
+
+        procedures = list(db["procedures"].find({"patient_id": pid}))
+        if not procedures:
+            procedures = dataset_service.get_patient_procedures(pid)
+
+        notes = list(db["clinical_notes"].find({"patient_id": pid}))
+        if not notes:
+            notes = dataset_service.get_patient_notes(pid)
+
+        discharge_plan = db["discharge_plans"].find_one({"patient_id": pid})
+        if not discharge_plan:
+            discharge_plan = dataset_service.get_patient_discharge_plan(pid)
+
+        prediction = db["predictions"].find_one({"patient_id": pid})
 
         return {
             "patient": patient,
-            "encounters": encounters,
-            "diagnoses": diagnoses,
-            "vitals": vitals,
-            "labs": labs,
-            "medications": medications,
-            "allergies": allergies,
-            "procedures": procedures,
-            "notes": notes,
+            "encounters": encounters or [],
+            "diagnoses": diagnoses or [],
+            "vitals": vitals or [],
+            "labs": labs or [],
+            "medications": medications or [],
+            "allergies": allergies or [],
+            "procedures": procedures or [],
+            "notes": notes or [],
             "discharge_plan": discharge_plan,
             "prediction": prediction,
             "report_generated_at": datetime.datetime.utcnow().isoformat(),

@@ -16,10 +16,14 @@ __pycache__/
 frontend/dist/
 **/dist/
 
-# Local databases
+# Local databases & runtime storage
 *.db
 *.sqlite3
 postgres_data/
+storage/
+**/storage/
+scratch/
+**/scratch/
 
 # Environment configurations (preserve template)
 .env

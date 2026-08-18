@@ -100,10 +100,10 @@ export const ClinicalOverviewPage: React.FC = () => {
             <span>101,766 Clinical Dataset Cohort</span>
           </div>
           <button
-            onClick={() => navigate('/ehr/1')}
-            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            onClick={() => navigate('/patients')}
+            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <span>Featured Case (James Anderson)</span>
+            <span>Open Patient Census</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>

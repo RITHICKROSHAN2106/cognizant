@@ -55,12 +55,12 @@ class Token(BaseModel):
 
 # --- Patient Schemas ---
 class PatientBase(BaseModel):
-    mrn: str
-    first_name: str
-    last_name: str
-    dob: str
-    age: int
-    sex: str
+    mrn: str = "MRN-000000"
+    first_name: str = "Patient"
+    last_name: str = "Record"
+    dob: str = "1965-01-01"
+    age: int = 50
+    sex: str = "Female"
     phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
@@ -69,10 +69,10 @@ class PatientBase(BaseModel):
     race: str = "Caucasian"
     ethnicity: str = "Non-Hispanic"
     safety_badges: List[str] = []
-    current_ward: Optional[str] = None
-    current_room: Optional[str] = None
+    current_ward: Optional[str] = "Ward 5B"
+    current_room: Optional[str] = "5B-101"
     admission_status: str = "Inpatient"
-    primary_diagnosis: Optional[str] = None
+    primary_diagnosis: Optional[str] = "Clinical Observation"
 
 
 class PatientCreate(BaseModel):
@@ -261,7 +261,7 @@ class ClinicalNoteSchema(BaseModel):
 
 class EncounterSchema(BaseModel):
     id: int
-    encounter_id: str
+    encounter_id: Union[str, int]
     patient_id: int
     admission_date: Optional[Union[datetime.datetime, str]] = None
     discharge_date: Optional[Union[datetime.datetime, str]] = None
@@ -442,19 +442,23 @@ class ChatResponse(BaseModel):
 
 # --- Reports Schemas ---
 class ReportSummaryResponse(BaseModel):
-    patient: PatientDetail
-    encounters: List[EncounterSchema]
-    diagnoses: List[DiagnosisSchema]
-    vitals: List[ObservationSchema]
-    labs: List[LabResultSchema]
-    medications: List[MedicationSchema]
-    allergies: List[AllergySchema]
-    procedures: List[ProcedureSchema]
-    notes: List[ClinicalNoteSchema]
-    discharge_plan: Optional[DischargePlanSchema] = None
-    prediction: Optional[PredictionResult] = None
+    patient: Dict[str, Any]
+    encounters: List[Dict[str, Any]] = []
+    diagnoses: List[Dict[str, Any]] = []
+    vitals: List[Dict[str, Any]] = []
+    labs: List[Dict[str, Any]] = []
+    medications: List[Dict[str, Any]] = []
+    allergies: List[Dict[str, Any]] = []
+    procedures: List[Dict[str, Any]] = []
+    notes: List[Dict[str, Any]] = []
+    discharge_plan: Optional[Dict[str, Any]] = None
+    prediction: Optional[Dict[str, Any]] = None
     report_generated_at: str
     generated_by: str
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
 
 
 # --- Analytics Schemas ---

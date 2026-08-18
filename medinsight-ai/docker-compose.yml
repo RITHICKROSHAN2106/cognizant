@@ -1,18 +1,16 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: medinsight_postgres
+  mongodb:
+    image: mongo:7.0
+    container_name: medinsight_mongodb
     restart: always
     environment:
-      POSTGRES_USER: medinsight
-      POSTGRES_PASSWORD: medinsight123
-      POSTGRES_DB: medinsight_db
+      MONGO_INITDB_DATABASE: medinsight
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U medinsight -d medinsight_db"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,15 +22,16 @@ services:
     container_name: medinsight_backend
     restart: always
     depends_on:
-      postgres:
+      mongodb:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://medinsight:medinsight123@postgres:5432/medinsight_db
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: medinsight
       JWT_SECRET_KEY: your-super-secret-jwt-key-change-in-production-min-32-chars
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 480
       ML_MODEL_PATH: app/ml/artifacts/model.joblib
-      ML_MODEL_TYPE: demo
+      ML_MODEL_TYPE: ensemble
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://frontend:5173
     ports:
       - "8000:8000"
@@ -51,4 +50,4 @@ services:
       - "5173:5173"
 
 volumes:
-  postgres_data:
+  mongodb_data:

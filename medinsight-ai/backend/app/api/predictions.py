@@ -123,26 +123,44 @@ def get_prediction_explanation(
 
 
 @router.get("/patients/{patient_id}/readmission-risk", response_model=ApiResponse[Dict[str, Any]])
+@router.get("/predictions/patient/{patient_id}", response_model=ApiResponse[Dict[str, Any]])
 def get_patient_readmission_risk(
     patient_id: int,
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    patient = db["patients"].find_one({"id": patient_id})
+    patient = db["patients"].find_one({"id": patient_id}) or db["patients"].find_one({"source_patient_id": patient_id})
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Patient {patient_id} not found"
         )
 
-    predictions = list(db["predictions"].find({"patient_id": patient_id}))
+    pid = patient["id"]
+    predictions = list(db["predictions"].find({"patient_id": pid}))
     latest = predictions[-1] if predictions else None
+
+    if not latest:
+        encs = list(db["encounters"].find({"patient_id": pid}))
+        if encs:
+            latest_enc = encs[-1]
+            try:
+                prediction_service.score_encounter_by_id(latest_enc["id"], db=db)
+                predictions = list(db["predictions"].find({"patient_id": pid}))
+                latest = predictions[-1] if predictions else None
+            except Exception as ex:
+                logger.warning(f"Auto-score notice for patient {pid}: {ex}")
+
     latest_schema = PredictionResult(**latest) if latest else None
 
     return ApiResponse(
         success=True,
         data={
-            "patient_id": patient_id,
+            "patient_id": pid,
+            "risk_probability": latest.get("risk_probability") if latest else patient.get("risk_probability", 0.45),
+            "risk_level": latest.get("risk_level") if latest else patient.get("risk_level", "Moderate"),
+            "model_name": "MedInsight-Ensemble-XGBoost-LightGBM",
+            "model_version": "prod-v2.1",
             "latest_prediction": latest_schema,
             "prediction_history": predictions
         },

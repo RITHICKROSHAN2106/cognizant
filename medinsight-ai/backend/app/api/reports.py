@@ -42,6 +42,8 @@ def get_patient_report_data(
             message="Patient clinical report aggregated successfully"
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating patient report: {str(e)}"

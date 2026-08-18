@@ -13,6 +13,10 @@ __pycache__/
 *.db
 *.sqlite3
 postgres_data/
+storage/
+**/storage/
+scratch/
+**/scratch/
 
 # Environment files
 .env

@@ -1,36 +1,46 @@
-import sqlite3
+"""
+MedInsight AI MongoDB Inspection Utility
+Inspects MongoDB collections, documents, patient counts, and indexes.
+"""
+from app.database.mongodb import mongodb_manager
 
-conn = sqlite3.connect('medinsight.db')
-cursor = conn.cursor()
+db = mongodb_manager.get_db()
 
-# List all tables with row counts
-cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-tables = cursor.fetchall()
-print("=== DATABASE TABLES ===")
-for t in tables:
-    name = t[0]
-    cursor.execute(f"SELECT COUNT(*) FROM {name}")
-    count = cursor.fetchone()[0]
-    print(f"  {name:<30} {count:>5} rows")
+print("=== MEDINSIGHT MONGODB INSPECTOR ===")
+print(f"Active Engine: {'MongoDB Cluster' if mongodb_manager.is_atlas else 'In-Memory Document Store'}")
 
-# All patients
-print("\n=== PATIENTS (all 30) ===")
-cursor.execute("SELECT id, mrn, first_name, last_name, age, sex, admission_status, current_ward, current_room FROM patients ORDER BY id")
-for row in cursor.fetchall():
-    print(f"  ID:{row[0]:<3} | {row[2]+' '+row[3]:<22} | {row[1]:<15} | Age:{row[4]} {row[5]:<7} | {row[6]:<12} | {row[7]} {row[8]}")
+collections = ["users", "patients", "encounters", "diagnoses", "observations", "medications", 
+               "allergies", "procedures", "notes", "predictions", "prediction_explanations", 
+               "recommendations", "discharge_plans", "post_discharge_care_plans", "audit_logs"]
 
-# Show encounters summary
-print("\n=== ENCOUNTERS (all) ===")
-cursor.execute("SELECT patient_id, encounter_id, encounter_type, is_current, readmission_status FROM encounters ORDER BY patient_id")
-for row in cursor.fetchall():
-    print(f"  Patient:{row[0]:<4} | {row[1]:<20} | {row[2]:<15} | Current:{row[3]} | {row[4]}")
+print("\n=== COLLECTION RECORD COUNTS ===")
+for col_name in collections:
+    col = db[col_name]
+    count = col.count_documents({}) if hasattr(col, "count_documents") else len(list(col.find({})))
+    print(f"  {col_name:<30} {count:>6} documents")
 
-# Quick data summary
-print("\n=== FULL DATA SUMMARY ===")
-for table in ['encounters', 'diagnoses', 'lab_results', 'medications', 'observations', 'allergies', 'procedures', 'clinical_notes', 'predictions', 'prediction_explanations', 'recommendations', 'discharge_plans', 'users', 'audit_logs']:
-    cursor.execute(f"SELECT COUNT(*) FROM {table}")
-    c = cursor.fetchone()[0]
-    print(f"  {table:<30} {c:>5} rows")
+# Inspect Patients
+print("\n=== REGISTERED PATIENTS SAMPLE ===")
+patients = list(db["patients"].find({}).limit(10))
+for p in patients:
+    pid = p.get("id")
+    mrn = p.get("mrn", "N/A")
+    name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+    age = p.get("age", "N/A")
+    sex = p.get("sex", p.get("gender", "N/A"))
+    source = p.get("record_source", "UNKNOWN")
+    risk = p.get("risk_level", "N/A")
+    print(f"  ID:{pid:<4} | {name:<22} | {mrn:<15} | Age:{age} {sex:<6} | Risk:{risk:<8} | Source:{source}")
 
-conn.close()
-print("\n=== Database file: backend/medinsight.db (SQLite) ===")
+# Inspect Encounters
+print("\n=== ENCOUNTERS SAMPLE ===")
+encounters = list(db["encounters"].find({}).limit(10))
+for e in encounters:
+    pid = e.get("patient_id")
+    enc_id = e.get("encounter_id", "N/A")
+    enc_type = e.get("encounter_type", "Inpatient")
+    adm_date = e.get("admission_date", "N/A")
+    readm = e.get("readmission_status", "N/A")
+    print(f"  Patient:{pid:<4} | Enc:{enc_id:<16} | Type:{enc_type:<18} | Adm:{adm_date} | Outcome:{readm}")
+
+print("\n=== Verification Complete ===")

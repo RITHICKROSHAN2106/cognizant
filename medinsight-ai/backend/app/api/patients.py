@@ -135,25 +135,67 @@ def list_patients(
     risk_level: Optional[str] = Query(None, description="Filter by risk tier: Critical, High, Moderate, Low"),
     ward: Optional[str] = Query(None, description="Filter by ward location"),
     search: Optional[str] = Query(None, description="Search by name or MRN"),
-
     skip: int = 0,
     limit: int = 100,
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
     from app.services.dataset_service import dataset_service
+    registered_summaries = []
+    seen_ids = set()
+
+    # 1. Fetch newly registered MongoDB patients first
+    if db:
+        query_filter: Dict[str, Any] = {"record_source": "CLINICAL_REGISTRATION"}
+        if risk_level:
+            query_filter["risk_level"] = risk_level
+        if ward:
+            query_filter["current_ward"] = ward
+        if search:
+            query_filter["$or"] = [
+                {"first_name": {"$regex": search, "$options": "i"}},
+                {"last_name": {"$regex": search, "$options": "i"}},
+                {"mrn": {"$regex": search, "$options": "i"}}
+            ]
+        for p in db["patients"].find(query_filter).sort("created_at", -1):
+            pid = p.get("id")
+            if pid and pid not in seen_ids:
+                seen_ids.add(pid)
+                registered_summaries.append(PatientSummary(
+                    id=pid,
+                    mrn=p.get("mrn", f"MRN-{pid}"),
+                    first_name=p.get("first_name", ""),
+                    last_name=p.get("last_name", ""),
+                    dob=p.get("dob", "1965-01-01"),
+                    age=p.get("age", 50),
+                    sex=p.get("sex", p.get("gender", "Female")),
+                    blood_group=p.get("blood_group", "O+"),
+                    race=p.get("race", "Caucasian"),
+                    ethnicity=p.get("ethnicity", "Non-Hispanic"),
+                    safety_badges=p.get("safety_badges", ["CLINICAL ADMISSION"]),
+                    current_ward=p.get("current_ward", "Ward 5B"),
+                    current_room=p.get("current_room", "5B-101"),
+                    admission_status=p.get("admission_status", "Inpatient"),
+                    primary_diagnosis=p.get("primary_diagnosis", "Observation"),
+                    risk_probability=p.get("risk_probability", 0.45),
+                    risk_level=p.get("risk_level", "Moderate"),
+                    length_of_stay=p.get("length_of_stay", 1)
+                ))
+
+    # 2. Query 1-Lakh Dataset
     page = (skip // limit) + 1 if limit > 0 else 1
+    ds_limit = max(10, limit - len(registered_summaries))
     res = dataset_service.query_patients(
         search=search,
         risk_level=risk_level,
         ward=ward,
         page=page,
-        page_size=limit,
+        page_size=ds_limit,
         sort_by="risk_probability",
         sort_desc=True
     )
     
-    results = [
+    dataset_summaries = [
         PatientSummary(
             id=p.get("id", 1),
             mrn=p.get("mrn", ""),
@@ -175,9 +217,11 @@ def list_patients(
             length_of_stay=p.get("length_of_stay", 3)
         )
         for p in res.get("items", [])
+        if p.get("id") not in seen_ids
     ]
 
-    return ApiResponse(success=True, data=results, message=f"Retrieved {len(results)} patients from 101,766 clinical dataset")
+    all_results = registered_summaries + dataset_summaries
+    return ApiResponse(success=True, data=all_results, message=f"Retrieved {len(all_results)} patients ({len(registered_summaries)} registered + {len(dataset_summaries)} dataset)")
 
 
 @router.get("/high-risk", response_model=ApiResponse[List[PatientSummary]])
@@ -187,8 +231,39 @@ def get_high_risk_patients(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     from app.services.dataset_service import dataset_service
+    registered_high_risk = []
+    seen_ids = set()
+
+    # 1. Fetch registered high-risk patients
+    if db:
+        for p in db["patients"].find({"record_source": "CLINICAL_REGISTRATION", "risk_probability": {"$gte": 0.50}}):
+            pid = p.get("id")
+            if pid and pid not in seen_ids:
+                seen_ids.add(pid)
+                registered_high_risk.append(PatientSummary(
+                    id=pid,
+                    mrn=p.get("mrn", f"MRN-{pid}"),
+                    first_name=p.get("first_name", ""),
+                    last_name=p.get("last_name", ""),
+                    dob=p.get("dob", "1965-01-01"),
+                    age=p.get("age", 50),
+                    sex=p.get("sex", p.get("gender", "Female")),
+                    blood_group=p.get("blood_group", "O+"),
+                    race=p.get("race", "Caucasian"),
+                    ethnicity=p.get("ethnicity", "Non-Hispanic"),
+                    safety_badges=p.get("safety_badges", ["HIGH READMISSION RISK"]),
+                    current_ward=p.get("current_ward", "Ward 5B"),
+                    current_room=p.get("current_room", "5B-101"),
+                    admission_status=p.get("admission_status", "Inpatient"),
+                    primary_diagnosis=p.get("primary_diagnosis", "Observation"),
+                    risk_probability=p.get("risk_probability", 0.65),
+                    risk_level=p.get("risk_level", "High"),
+                    length_of_stay=p.get("length_of_stay", 1)
+                ))
+
+    # 2. Fetch dataset high-risk
     items = dataset_service.get_high_risk_patients(filter_type=filter_type, limit=50)
-    results = [
+    dataset_high_risk = [
         PatientSummary(
             id=p.get("id", 1),
             mrn=p.get("mrn", ""),
@@ -210,8 +285,11 @@ def get_high_risk_patients(
             length_of_stay=p.get("length_of_stay", 3)
         )
         for p in items
+        if p.get("id") not in seen_ids
     ]
-    return ApiResponse(success=True, data=results, message=f"Retrieved {len(results)} high-risk patients from 101,766 clinical cohort")
+    
+    results = registered_high_risk + dataset_high_risk
+    return ApiResponse(success=True, data=results, message=f"Retrieved {len(results)} high-risk patients from clinical cohort")
 
 
 @router.get("/search", response_model=ApiResponse[List[PatientSummary]])
@@ -220,32 +298,80 @@ def search_patients(
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    from app.services.dataset_service import dataset_service
-    items = dataset_service.search_patients(query=q, limit=50)
-    results = [
-        PatientSummary(
-            id=p.get("id", 1),
-            mrn=p.get("mrn", ""),
-            first_name=p.get("first_name", ""),
-            last_name=p.get("last_name", ""),
-            dob=p.get("dob", ""),
-            age=p.get("age", 0),
+    from app.repositories.patient_repository import patient_repository
+    raw_matches = patient_repository.search(q, limit=30)
+    
+    matches = []
+    for p in raw_matches:
+        pid = p.get("id") or p.get("source_patient_id", 1)
+        matches.append(PatientSummary(
+            id=int(pid),
+            mrn=p.get("mrn", f"MRN-{pid}"),
+            first_name=p.get("first_name", f"PT-{pid}"),
+            last_name=p.get("last_name", "Record"),
+            dob=p.get("dob", "1965-01-01"),
+            age=int(p.get("age", 50)),
             sex=p.get("sex", p.get("gender", "Female")),
             blood_group=p.get("blood_group", "O+"),
             race=p.get("race", "Caucasian"),
             ethnicity=p.get("ethnicity", "Non-Hispanic"),
             safety_badges=p.get("safety_badges", []),
-            current_ward=p.get("current_ward"),
-            current_room=p.get("current_room"),
+            current_ward=p.get("current_ward", "Inpatient Ward"),
+            current_room=p.get("current_room", "5B-101"),
             admission_status=p.get("admission_status", "Inpatient"),
-            primary_diagnosis=p.get("primary_diagnosis"),
-            risk_probability=p.get("risk_probability", 0.15),
-            risk_level=p.get("risk_level", "Low"),
+            primary_diagnosis=p.get("primary_diagnosis", "Clinical Observation"),
+            risk_probability=p.get("risk_probability", 0.35),
+            risk_level=p.get("risk_level", "Moderate"),
             length_of_stay=p.get("length_of_stay", 3)
-        )
-        for p in items
-    ]
-    return ApiResponse(success=True, data=results, message=f"Found {len(results)} matches in 101,766 dataset for '{q}'")
+        ))
+
+    return ApiResponse(success=True, data=matches, message=f"Found {len(matches)} matches for '{q}'")
+
+
+@router.post("/check-duplicate", response_model=ApiResponse[List[PatientSummary]])
+def check_duplicate_patient(
+    payload: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    from app.repositories.patient_repository import patient_repository
+    first = payload.get("first_name", "").strip()
+    last = payload.get("last_name", "").strip()
+    dob = payload.get("dob", "").strip()
+    phone = payload.get("phone", "").strip() or None
+    mrn = payload.get("mrn", "").strip() or None
+
+    duplicates = patient_repository.find_duplicates(first_name=first, last_name=last, dob=dob, phone=phone, mrn=mrn)
+    
+    matches = []
+    for p in duplicates:
+        pid = p.get("id") or p.get("source_patient_id", 1)
+        matches.append(PatientSummary(
+            id=int(pid),
+            mrn=p.get("mrn", f"MRN-{pid}"),
+            first_name=p.get("first_name", f"PT-{pid}"),
+            last_name=p.get("last_name", "Record"),
+            dob=p.get("dob", "1965-01-01"),
+            age=int(p.get("age", 50)),
+            sex=p.get("sex", p.get("gender", "Female")),
+            blood_group=p.get("blood_group", "O+"),
+            race=p.get("race", "Caucasian"),
+            ethnicity=p.get("ethnicity", "Non-Hispanic"),
+            safety_badges=p.get("safety_badges", []),
+            current_ward=p.get("current_ward", "Inpatient Ward"),
+            current_room=p.get("current_room", "5B-101"),
+            admission_status=p.get("admission_status", "Inpatient"),
+            primary_diagnosis=p.get("primary_diagnosis", "Clinical Observation"),
+            risk_probability=p.get("risk_probability", 0.35),
+            risk_level=p.get("risk_level", "Moderate"),
+            length_of_stay=p.get("length_of_stay", 3)
+        ))
+
+    return ApiResponse(
+        success=True,
+        data=matches,
+        message=f"Found {len(matches)} duplicate candidate(s)"
+    )
 
 
 @router.get("/{patient_id}", response_model=ApiResponse[PatientDetail])
@@ -316,11 +442,12 @@ def create_patient(
     """Registers a new patient and persists records across MongoDB collections."""
     from app.services.dataset_service import dataset_service
     
-    # Generate unique ID and MRN
+    # Generate unique ID and institutional MRN
     new_id = int(time.time() % 100000000) + random.randint(1000, 9999)
-    mrn = patient_in.mrn or f"MRN-{new_id:07d}"
+    mrn = patient_in.mrn.strip() if (patient_in.mrn and patient_in.mrn.strip()) else f"MRN-2026-{new_id % 1000000:06d}"
     
     patient_dict = patient_in.model_dump()
+
     
     # Calculate baseline clinical risk level
     age = patient_dict.get("age", 50)
@@ -329,10 +456,25 @@ def create_patient(
     risk_level = "High" if risk_p >= 0.70 else "Moderate" if risk_p >= 0.40 else "Low"
     
     now_iso = datetime.datetime.utcnow().isoformat()
+
+    # Automatically derive clinical safety badges
+    badges = list(patient_dict.get("safety_badges") or [])
+    prim_diag_str = str(patient_dict.get("primary_diagnosis", "")).lower()
+    allergies_str = str(patient_dict.get("known_allergies", "")).lower()
+    
+    if ("diabetes" in prim_diag_str or patient_dict.get("has_diabetes")) and "DIABETES" not in badges:
+        badges.append("DIABETES")
+    if "penicillin" in allergies_str and "PENICILLIN ALLERGY" not in badges:
+        badges.append("PENICILLIN ALLERGY")
+    if "fall" in str(patient_dict.get("safety_badges", "")).lower() and "FALL RISK" not in badges:
+        badges.append("FALL RISK")
+    if not badges:
+        badges.append("CLINICAL ADMISSION")
     
     patient_doc = {
         "id": new_id,
         "mrn": mrn,
+        "record_source": "CLINICAL_REGISTRATION",
         "first_name": patient_dict.get("first_name", "Patient"),
         "last_name": patient_dict.get("last_name", "Record"),
         "dob": patient_dict.get("dob", "1960-01-01"),
@@ -345,7 +487,7 @@ def create_patient(
         "blood_group": patient_dict.get("blood_group", "O+"),
         "race": patient_dict.get("race", "Caucasian"),
         "ethnicity": patient_dict.get("ethnicity", "Non-Hispanic"),
-        "safety_badges": patient_dict.get("safety_badges", ["CLINICAL ADMISSION"]),
+        "safety_badges": badges,
         "current_ward": patient_dict.get("current_ward", "Ward 5B"),
         "current_room": patient_dict.get("current_room", "5B-101"),
         "admission_status": patient_dict.get("admission_status", "Inpatient"),
@@ -359,8 +501,10 @@ def create_patient(
         "intervention_status": "Active Monitoring",
         "main_risk_driver": "New Inpatient Glycemic & Vital Stabilization",
         "created_at": now_iso,
-        "updated_at": now_iso
+        "updated_at": now_iso,
+        "created_by": current_user.full_name
     }
+
     
     # 1. Persist in MongoDB patients collection
     db["patients"].insert_one(patient_doc)
@@ -430,7 +574,42 @@ def create_patient(
         "recorded_at": now_iso
     })
     
-    # 5. Persist initial clinical note in MongoDB notes collection
+    # 5. Persist medications if provided
+    med_str = patient_dict.get("active_medications")
+    if med_str:
+        med_list = [m.strip() for m in med_str.split(",") if m.strip()]
+        for m_idx, med_name in enumerate(med_list, start=1):
+            db["medications"].insert_one({
+                "id": m_idx,
+                "patient_id": new_id,
+                "encounter_id": enc_id,
+                "medication_name": med_name,
+                "dose": "Standard",
+                "route": "Oral",
+                "frequency": "Daily",
+                "status": "Active",
+                "insulin_status": "Increased" if "insulin" in med_name.lower() else "None",
+                "is_active": True,
+                "prescribed_at": now_iso,
+                "prescribed_by": patient_doc["attending_physician"]
+            })
+
+    # 6. Persist allergies if provided
+    all_str = patient_dict.get("known_allergies")
+    if all_str:
+        all_list = [a.strip() for a in all_str.split(",") if a.strip()]
+        for a_idx, all_name in enumerate(all_list, start=1):
+            db["allergies"].insert_one({
+                "id": a_idx,
+                "patient_id": new_id,
+                "substance": all_name,
+                "reaction": "Adverse reaction / sensitivity",
+                "severity": "Severe" if "severe" in all_name.lower() or "anaph" in all_name.lower() else "Moderate",
+                "verification_status": "Confirmed",
+                "identified_at": now_iso
+            })
+
+    # 7. Persist initial clinical note in MongoDB notes collection
     db["notes"].insert_one({
         "id": 1,
         "patient_id": new_id,
@@ -457,6 +636,65 @@ def create_patient(
         success=True,
         data=PatientDetail(**patient_doc),
         message=f"Patient {patient_doc['first_name']} {patient_doc['last_name']} registered successfully"
+    )
+
+
+@router.post("/{patient_id}/encounters", response_model=ApiResponse[EncounterSchema], status_code=status.HTTP_201_CREATED)
+def create_patient_encounter(
+    patient_id: int,
+    encounter_data: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    Creates a new encounter under an existing patient record (Returning Patient flow).
+    Preserves single master patient identity while creating a new longitudinal encounter.
+    """
+    patient = db["patients"].find_one({"id": patient_id})
+    if not patient:
+        from app.services.dataset_service import dataset_service
+        patient = dataset_service.get_patient_by_id(patient_id)
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Patient {patient_id} not found.")
+
+    enc_id = int(time.time() % 10000000) + random.randint(100, 999)
+    now_iso = datetime.datetime.utcnow().isoformat()
+
+    encounter_doc = {
+        "id": enc_id,
+        "encounter_id": encounter_data.get("encounter_id") or f"ENC-{enc_id}",
+        "patient_id": patient_id,
+        "admission_date": encounter_data.get("admission_date", datetime.date.today().isoformat()),
+        "discharge_date": encounter_data.get("discharge_date"),
+        "encounter_type": encounter_data.get("encounter_type", "Inpatient Readmission"),
+        "department": encounter_data.get("department", "Internal Medicine"),
+        "ward": encounter_data.get("ward", patient.get("current_ward", "Ward 5B")),
+        "room": encounter_data.get("room", patient.get("current_room", "5B-101")),
+        "attending_physician": encounter_data.get("attending_physician", current_user.full_name),
+        "primary_diagnosis": encounter_data.get("primary_diagnosis", patient.get("primary_diagnosis", "Observation")),
+        "secondary_diagnoses": encounter_data.get("secondary_diagnoses", []),
+        "length_of_stay": encounter_data.get("length_of_stay", 1),
+        "admission_source": encounter_data.get("admission_source", "Emergency Room"),
+        "admission_type": encounter_data.get("admission_type", "Urgent"),
+        "discharge_disposition": "Under Inpatient Care",
+        "readmission_status": "NO",
+        "is_current": True
+    }
+    db["encounters"].insert_one(encounter_doc)
+
+    log_audit_event(
+        db=db,
+        user=current_user,
+        action="ENCOUNTER_CREATED",
+        resource="encounters",
+        patient_id=patient_id,
+        encounter_id=enc_id
+    )
+
+    return ApiResponse(
+        success=True,
+        data=EncounterSchema(**encounter_doc),
+        message=f"New encounter {encounter_doc['encounter_id']} created for patient {patient.get('first_name')} {patient.get('last_name')}"
     )
 
 
