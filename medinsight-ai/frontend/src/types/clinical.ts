@@ -138,10 +138,12 @@ export interface Observation {
   encounter_id?: number;
   code: string;
   name: string;
+  observation_type?: string;
   value: number;
   value_string?: string;
   unit: string;
   recorded_at: string;
+  source?: string;
   status: 'Normal' | 'High' | 'Low' | 'Critical';
 }
 

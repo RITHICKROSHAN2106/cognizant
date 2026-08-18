@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Activity, Thermometer, Wind, Compass, Calendar, Sparkles } from 'lucide-react';
+import { Heart, Activity, Thermometer, Wind, Compass, Calendar, Sparkles, Droplet } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Observation } from '../../types/clinical';
 import { useCopilot } from '../../contexts/CopilotContext';
@@ -9,27 +9,26 @@ interface VitalsTabProps {
 }
 
 export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
-  const [selectedVital, setSelectedVital] = useState<'HR' | 'BP' | 'SPO2' | 'TEMP'>('HR');
+  const [selectedVital, setSelectedVital] = useState<'HR' | 'BP' | 'SPO2' | 'TEMP' | 'GLU'>('HR');
   const { openCopilot } = useCopilot();
 
-  // Prepare trend data
-  const chartData = [
-    { time: 'Day 1 Admit', HR: 98, systolic: 158, diastolic: 94, SPO2: 96, TEMP: 37.4, RR: 20 },
-    { time: 'Day 2', HR: 92, systolic: 152, diastolic: 90, SPO2: 97, TEMP: 37.1, RR: 18 },
-    { time: 'Day 3', HR: 86, systolic: 148, diastolic: 88, SPO2: 97, TEMP: 36.9, RR: 18 },
-    { time: 'Day 4', HR: 84, systolic: 142, diastolic: 88, SPO2: 98, TEMP: 36.8, RR: 16 },
-    { time: 'Day 5', HR: 80, systolic: 138, diastolic: 84, SPO2: 98, TEMP: 36.7, RR: 16 },
-    { time: 'Day 6', HR: 78, systolic: 136, diastolic: 82, SPO2: 98, TEMP: 36.6, RR: 16 },
-    { time: 'Day 7 Current', HR: 76, systolic: 134, diastolic: 82, SPO2: 98, TEMP: 36.6, RR: 16 },
-  ];
+  const getVital = (code: string) => vitals.find((v) => v.code === code || v.observation_type === code);
+
+  const hr = getVital('HR') || getVital('heart_rate');
+  const bp = getVital('BP') || getVital('blood_pressure');
+  const spo2 = getVital('SPO2') || getVital('oxygen_saturation');
+  const temp = getVital('TEMP') || getVital('temperature');
+  const glu = getVital('GLU') || getVital('blood_glucose');
+
+  const hasAnyVitals = vitals && vitals.length > 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Longitudinal Vital Signs & Observations</h2>
+          <h2 className="text-base font-bold text-slate-900">Bedside Vital Signs & Clinical Observations</h2>
           <p className="text-xs text-slate-500">
-            Real-time physiologic observations, continuous telemetry, and historical trend trajectories.
+            Recorded clinical observations stored in MongoDB. (Note: historical dataset contains laboratory metrics; bedside vitals are captured via clinical entry).
           </p>
         </div>
         <button
@@ -41,9 +40,8 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
         </button>
       </div>
 
-
-      {/* Vital Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Vital Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <button
           onClick={() => setSelectedVital('HR')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
@@ -57,9 +55,17 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
             <Heart className="w-4 h-4 text-rose-500" />
           </div>
           <div className="text-xl font-black text-slate-900 mt-1">
-            76 <span className="text-xs font-normal text-slate-500">bpm</span>
+            {hr?.value ? (
+              <>
+                {hr.value} <span className="text-xs font-normal text-slate-500">{hr.unit || 'bpm'}</span>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 font-normal italic">Not Recorded</span>
+            )}
           </div>
-          <div className="text-[10px] text-emerald-600 font-semibold mt-1">Normal Sinus Rhythm</div>
+          <div className="text-[10px] text-slate-500 font-medium mt-1">
+            {hr?.status || 'Observation source'}
+          </div>
         </button>
 
         <button
@@ -75,9 +81,11 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
             <Activity className="w-4 h-4 text-sky-600" />
           </div>
           <div className="text-xl font-black text-slate-900 mt-1">
-            134/82 <span className="text-xs font-normal text-slate-500">mmHg</span>
+            {bp?.value_string || (bp?.value ? `${bp.value} mmHg` : <span className="text-xs text-slate-400 font-normal italic">Not Recorded</span>)}
           </div>
-          <div className="text-[10px] text-slate-500 font-semibold mt-1">Stabilizing on Lisinopril</div>
+          <div className="text-[10px] text-slate-500 font-medium mt-1">
+            {bp?.status || 'Observation source'}
+          </div>
         </button>
 
         <button
@@ -93,9 +101,17 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
             <Wind className="w-4 h-4 text-teal-600" />
           </div>
           <div className="text-xl font-black text-slate-900 mt-1">
-            98 <span className="text-xs font-normal text-slate-500">%</span>
+            {spo2?.value ? (
+              <>
+                {spo2.value} <span className="text-xs font-normal text-slate-500">%</span>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 font-normal italic">Not Recorded</span>
+            )}
           </div>
-          <div className="text-[10px] text-emerald-600 font-semibold mt-1">Room Air</div>
+          <div className="text-[10px] text-slate-500 font-medium mt-1">
+            {spo2?.status || 'Pulse Oximeter'}
+          </div>
         </button>
 
         <button
@@ -111,48 +127,96 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
             <Thermometer className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-xl font-black text-slate-900 mt-1">
-            36.6 <span className="text-xs font-normal text-slate-500">°C</span>
+            {temp?.value ? (
+              <>
+                {temp.value} <span className="text-xs font-normal text-slate-500">{temp.unit || '°F'}</span>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 font-normal italic">Not Recorded</span>
+            )}
           </div>
-          <div className="text-[10px] text-emerald-600 font-semibold mt-1">Afebrile</div>
+          <div className="text-[10px] text-slate-500 font-medium mt-1">
+            {temp?.status || 'Thermometry'}
+          </div>
+        </button>
+
+        <button
+          onClick={() => setSelectedVital('GLU')}
+          className={`p-3.5 rounded-xl border text-left transition-all ${
+            selectedVital === 'GLU'
+              ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-200'
+              : 'bg-white border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase">Blood Glucose</span>
+            <Droplet className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-1">
+            {glu?.value ? (
+              <>
+                {glu.value} <span className="text-xs font-normal text-slate-500">{glu.unit || 'mg/dL'}</span>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 font-normal italic">Not Recorded</span>
+            )}
+          </div>
+          <div className="text-[10px] text-slate-500 font-medium mt-1">
+            {glu?.status || 'POC Blood Glucose'}
+          </div>
         </button>
       </div>
 
-      {/* Interactive Trend Chart */}
-      <div className="clinical-card p-5">
-        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-          <div className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            Inpatient Longitudinal Trajectory: {selectedVital === 'HR' ? 'Heart Rate (bpm)' : selectedVital === 'BP' ? 'Blood Pressure (Systolic / Diastolic mmHg)' : selectedVital === 'SPO2' ? 'SpO2 Oxygen Saturation (%)' : 'Temperature (°C)'}
-          </div>
-          <span className="text-[11px] font-medium text-slate-500">7-Day Continuous Recording</span>
+      {/* Observation History Table */}
+      <div className="clinical-card p-5 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            Clinical Observation History (MongoDB Source)
+          </h3>
+          <span className="text-[11px] text-slate-500 font-medium">{vitals.length} recorded entries</span>
         </div>
 
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
-              <YAxis stroke="#94a3b8" fontSize={11} domain={['auto', 'auto']} tickLine={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '0.5rem', fontSize: '12px' }}
-              />
-              {selectedVital === 'HR' && (
-                <Line type="monotone" dataKey="HR" stroke="#e11d48" strokeWidth={2.5} dot={{ r: 4 }} name="Heart Rate (bpm)" />
-              )}
-              {selectedVital === 'BP' && (
-                <>
-                  <Line type="monotone" dataKey="systolic" stroke="#0284c7" strokeWidth={2.5} dot={{ r: 4 }} name="Systolic BP (mmHg)" />
-                  <Line type="monotone" dataKey="diastolic" stroke="#0d9488" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4 }} name="Diastolic BP (mmHg)" />
-                </>
-              )}
-              {selectedVital === 'SPO2' && (
-                <Line type="monotone" dataKey="SPO2" stroke="#0d9488" strokeWidth={2.5} dot={{ r: 4 }} name="SpO2 (%)" />
-              )}
-              {selectedVital === 'TEMP' && (
-                <Line type="monotone" dataKey="TEMP" stroke="#d97706" strokeWidth={2.5} dot={{ r: 4 }} name="Temperature (°C)" />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {vitals.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px]">
+                <tr>
+                  <th className="px-3 py-2">Observation / Vital</th>
+                  <th className="px-3 py-2">Value</th>
+                  <th className="px-3 py-2">Unit</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Source</th>
+                  <th className="px-3 py-2">Recorded At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {vitals.map((v, i) => (
+                  <tr key={v.id || i} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-bold text-slate-900">{v.name || v.observation_type || v.code}</td>
+                    <td className="px-3 py-2 font-mono">{v.value !== undefined && v.value !== null ? v.value : v.value_string}</td>
+                    <td className="px-3 py-2 text-slate-500">{v.unit}</td>
+                    <td className="px-3 py-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border">
+                        {v.status || 'Recorded'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-sky-800">{v.source || 'MANUAL_ENTRY'}</td>
+                    <td className="px-3 py-2 text-slate-500 text-[11px]">
+                      {v.recorded_at ? new Date(v.recorded_at).toLocaleString() : 'Recent'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-400 space-y-1">
+            <p className="text-xs font-semibold text-slate-600">No bedside vital observations recorded for this patient yet.</p>
+            <p className="text-[11px] text-slate-400">
+              The historical diabetic dataset provides laboratory data. Bedside telemetry can be recorded using the "Record Vitals" button in the overview panel.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

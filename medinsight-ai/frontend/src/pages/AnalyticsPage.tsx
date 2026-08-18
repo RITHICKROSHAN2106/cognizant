@@ -104,8 +104,10 @@ export const AnalyticsPage: React.FC = () => {
 
         <div className="clinical-card p-3.5 bg-white border border-slate-200 rounded-xl">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Model AUROC</div>
-          <div className="text-xl font-black text-sky-600 mt-1">0.842</div>
-          <div className="text-[10px] text-slate-500 mt-0.5">High Discrimination</div>
+          <div className="text-xl font-black text-sky-600 mt-1">
+            {(analytics?.model_metrics?.auroc || 0.6423).toFixed(3)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5">Ensemble Discrimination</div>
         </div>
 
         <div className="clinical-card p-3.5 bg-white border border-slate-200 rounded-xl">
@@ -235,28 +237,38 @@ export const AnalyticsPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">AUROC (Discrimination)</div>
-                  <div className="text-2xl font-black text-sky-400 mt-1">0.842</div>
+                  <div className="text-2xl font-black text-sky-400 mt-1">
+                    {(analytics?.model_metrics?.auroc || 0.6423).toFixed(4)}
+                  </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Test Concordance Index</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Accuracy</div>
-                  <div className="text-2xl font-black text-emerald-400 mt-1">81.4%</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Balanced Population</div>
+                  <div className="text-2xl font-black text-emerald-400 mt-1">
+                    {((analytics?.model_metrics?.accuracy || 0.7760) * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Evaluation Cohort</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Sensitivity (Recall)</div>
-                  <div className="text-2xl font-black text-teal-400 mt-1">82.5%</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Readmissions Caught</div>
+                  <div className="text-2xl font-black text-teal-400 mt-1">
+                    {((analytics?.model_metrics?.recall || 0.4958) * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Readmissions Identified</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Precision (PPV)</div>
-                  <div className="text-2xl font-black text-amber-400 mt-1">78.9%</div>
+                  <div className="text-2xl font-black text-amber-400 mt-1">
+                    {((analytics?.model_metrics?.precision || 0.2623) * 100).toFixed(1)}%
+                  </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">True High-Risk Alerts</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score / Brier</div>
-                  <div className="text-2xl font-black text-purple-400 mt-1">0.806</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Brier Score: 0.098</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score</div>
+                  <div className="text-2xl font-black text-purple-400 mt-1">
+                    {(analytics?.model_metrics?.f1 || 0.3431).toFixed(4)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Harmonic Mean</div>
                 </div>
               </div>
             </div>

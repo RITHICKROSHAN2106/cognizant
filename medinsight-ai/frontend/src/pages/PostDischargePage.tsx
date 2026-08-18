@@ -31,11 +31,11 @@ export const PostDischargePage: React.FC = () => {
 
   const [patients, setPatients] = useState<PostDischargePatientSummary[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({
-    all: 500,
-    high_risk: 250,
-    overdue: 120,
-    medication_pending: 180,
-    readmitted: 95
+    all: 0,
+    high_risk: 0,
+    overdue: 0,
+    medication_pending: 0,
+    readmitted: 0
   });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

@@ -734,16 +734,18 @@ class EnterpriseDatasetService:
                 "model_name": "MedInsight-Ensemble-XGBoost-LightGBM",
                 "model_version": "prod-v2.1",
                 "auroc": 0.6423,
-                "accuracy": 0.814,
-                "precision": 0.789,
-                "recall": 0.825,
-                "f1": 0.806,
+                "accuracy": 0.7760,
+                "precision": 0.2623,
+                "recall": 0.4958,
+                "sensitivity": 0.4958,
+                "f1": 0.3431,
                 "brier_score": 0.098,
                 "decision_threshold": 0.130,
                 "total_training_records": total_encs,
                 "unique_training_patients": total_patients,
-                "features_count": 77,
-                "calibration_status": "Isotonic Calibrated"
+                "features_count": 97,
+                "calibration_status": "Isotonic Calibrated",
+                "evaluation_source": "diabetes_readmission_notebook_final"
             }
         }
         return self.cached_analytics

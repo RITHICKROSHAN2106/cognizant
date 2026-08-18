@@ -62,16 +62,19 @@ def get_readmission_analytics(
             {"department": "Surgical / Orthopedics", "criticalCount": 0, "highCount": 0, "total": 6}
         ],
         model_metrics=pop.get("model_metrics", {
+            "model_name": "MedInsight-Ensemble-XGBoost-LightGBM",
+            "model_version": "prod-v2.1",
             "auroc": 0.6423,
-            "accuracy": 0.814,
-            "precision": 0.789,
-            "recall": 0.825,
-            "f1": 0.806,
+            "accuracy": 0.7760,
+            "precision": 0.2623,
+            "recall": 0.4958,
+            "sensitivity": 0.4958,
+            "f1": 0.3431,
             "brier_score": 0.098,
-            "model_version": "MedInsight-Ensemble-XGBoost-LightGBM (prod-v2.1)",
-            "evaluated_cohort_size": 101766,
+            "decision_threshold": 0.130,
+            "features_count": 97,
             "calibration_status": "Isotonic Calibrated",
-            "decision_threshold": 0.130
+            "evaluation_source": "diabetes_readmission_notebook_final"
         }),
         fairness_metrics=pop.get("fairness_metrics", []),
         total_dataset_encounters=total_encounters_live,

@@ -84,21 +84,31 @@ def find_csv_file() -> Optional[str]:
 
 
 def calculate_risk_dict(row: Dict[str, Any]) -> float:
-    score = 0.18
+    """
+    Computes baseline clinical readmission risk based on clinical predictors
+    without hardcoded score overrides or outcome data leakage.
+    """
+    score = 0.12
     num_inp = int(row.get('number_inpatient') or 0)
-    score += min(0.35, num_inp * 0.12)
+    score += min(0.30, num_inp * 0.10)
 
     num_meds = int(row.get('num_medications') or 10)
-    score += min(0.20, (num_meds / 30.0) * 0.20)
+    score += min(0.18, (num_meds / 30.0) * 0.18)
 
     los = int(row.get('time_in_hospital') or 3)
     score += min(0.15, (los / 14.0) * 0.15)
 
+    num_lab = int(row.get('num_lab_procedures') or 30)
+    score += min(0.10, (num_lab / 100.0) * 0.10)
+
+    num_emerg = int(row.get('number_emergency') or 0)
+    score += min(0.15, num_emerg * 0.08)
+
     a1c = str(row.get('A1Cresult') or 'None')
     if a1c == '>8':
-        score += 0.12
+        score += 0.10
     elif a1c == '>7':
-        score += 0.06
+        score += 0.05
 
     ins = str(row.get('insulin') or 'No')
     if ins in ['Up', 'Down']:
@@ -106,13 +116,7 @@ def calculate_risk_dict(row: Dict[str, Any]) -> float:
     elif ins == 'Steady':
         score += 0.04
 
-    readm = str(row.get('readmitted') or 'NO')
-    if readm == '<30':
-        score = max(score, 0.72)
-    elif readm == '>30':
-        score = max(score, 0.48)
-
-    return round(float(np.clip(score, 0.08, 0.96)), 3)
+    return round(float(np.clip(score, 0.08, 0.95)), 3)
 
 
 def import_dataset_to_mongodb(db, force_reimport: bool = False) -> Dict[str, Any]:
