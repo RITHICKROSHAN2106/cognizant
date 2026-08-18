@@ -24,7 +24,7 @@ export const AdministrationPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isResetPwdModalOpen, setIsResetPwdModalOpen] = useState<boolean>(false);
   const [selectedUserForReset, setSelectedUserForReset] = useState<User | null>(null);
-  const [tempPassword, setTempPassword] = useState<string>('Hospital2026!');
+  const [tempPassword, setTempPassword] = useState<string>('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
 
@@ -38,7 +38,7 @@ export const AdministrationPage: React.FC = () => {
     role: 'nurse',
     department: 'Internal Medicine',
     facility: 'MedInsight Central Hospital',
-    temporary_password: 'StaffInitial123!',
+    temporary_password: '',
     must_change_password: true,
   });
 
