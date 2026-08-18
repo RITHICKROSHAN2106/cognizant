@@ -7,7 +7,11 @@ from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
 from app.database.mongo_seed import seed_mongodb
-from app.api import auth, patients, predictions, recommendations, analytics, system, fhir, chat, reports, reference, vitals_ws
+from app.api import (
+    auth, patients, predictions, recommendations, analytics,
+    system, fhir, chat, reports, reference, vitals_ws,
+    copilot, post_discharge
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,29 +40,19 @@ app = FastAPI(
     ## MedInsight AI Hospital Readmission Platform API (MongoDB & Gemini AI)
     
     A clinical intelligence system designed for inpatient EHR surveillance, 
-    risk stratification, SHAP-driven explainable AI, Gemini AI patient chat, and personalized prevention workflows.
-    
-    ### Key Modules:
-    - **Authentication**: JWT & Role-Based Access Control (MongoDB `users`)
-    - **Clinical EHR**: Longitudinal Patient Records, Encounters, Diagnoses, Vitals, Labs, Medications
-    - **Patient Registration**: Complete Multi-Section Intake Form (`POST /api/patients`)
-    - **Patient AI Chat**: Patient-Specific Gemini LLM Chatbot (`POST /api/patients/{id}/chat`)
-    - **Clinical Reports & PDF**: Automated Report Summary & Healthcare PDF Export (`GET /api/patients/{id}/report/pdf`)
-    - **ML Service**: 30-Day Readmission Risk Scoring with Calibrated XGBoost & LightGBM
-    - **Explainable AI (XAI)**: SHAP Feature Attributions and What-If Scenario Simulators
-    - **Prevention & Discharge**: Clinical Decision Support Recommendations & Discharge Readiness Scoring
-    - **Interoperability**: HL7 FHIR R4 Adapters & MongoDB Atlas Status
+    risk stratification, SHAP-driven explainable AI, Contextual Clinical Copilot,
+    Post-Discharge Recovery & Continuity of Care, and personalized prevention workflows.
     """,
-    version="2.0.0",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure Hardened CORS: Explicit trusted origins only
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list + ["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,6 +92,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Register API Routers
 app.include_router(auth.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
+app.include_router(copilot.router, prefix="/api")
+app.include_router(post_discharge.router, prefix="/api")
 app.include_router(reference.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
@@ -107,6 +103,7 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(fhir.router, prefix="/api")
 app.include_router(vitals_ws.router)
+
 
 
 @app.get("/", tags=["Health"])

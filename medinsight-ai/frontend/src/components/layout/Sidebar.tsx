@@ -16,26 +16,38 @@ import {
   Bot,
   Sparkles,
   ShieldAlert,
-  Calendar
+  Calendar,
+  HeartPulse
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+
+interface NavItem {
+  label: string;
+  path: string;
+  icon: any;
+  badge?: string;
+  aiBadge?: string;
+  highlight?: boolean;
+}
 
 export const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { label: 'Clinical Overview', path: '/', icon: Activity },
     { label: 'Inpatient Census', path: '/patients', icon: Users },
+    { label: 'Post-Discharge Care', path: '/post-discharge', icon: HeartPulse, badge: 'Recovery' },
     { label: 'New Patient Intake', path: '/patients/new', icon: UserPlus, highlight: true },
     { label: 'High-Risk Safety Queue', path: '/high-risk', icon: ShieldAlert, badge: '5 Critical' },
     { label: 'Readmission Risk', path: '/risk', icon: BrainCircuit, badge: 'ML Model' },
-    { label: 'Clinical AI Copilot', path: '/chat', icon: Bot, aiBadge: 'Gemini' },
     { label: 'Clinical Reports & PDF', path: '/reports', icon: FileText },
     { label: 'Readmission Analytics', path: '/analytics', icon: TrendingUp },
     { label: 'Hospital Integrations', path: '/integrations', icon: Share2 },
     { label: 'System Diagnostics', path: '/system-health', icon: Server },
   ];
+
+
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col shrink-0 h-screen border-r border-slate-800 select-none">

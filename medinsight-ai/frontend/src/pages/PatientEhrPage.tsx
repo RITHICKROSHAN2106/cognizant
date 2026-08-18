@@ -18,7 +18,9 @@ import {
   Download,
   Printer,
   CheckCircle2,
-  Check
+  Check,
+  HeartPulse,
+  Sparkles
 } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { ehrService } from '../services/ehrService';
@@ -40,11 +42,15 @@ import { NotesTab } from '../components/clinical/NotesTab';
 import { RiskAnalysisTab } from '../components/clinical/RiskAnalysisTab';
 import { DischargePlanTab } from '../components/clinical/DischargePlanTab';
 import { ChatTab } from '../components/clinical/ChatTab';
+import { PostDischargeTab } from '../components/clinical/PostDischargeTab';
+import { useCopilot } from '../contexts/CopilotContext';
 
 export const PatientEhrPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setActivePatientContext, openCopilot } = useCopilot();
+
 
   const patientId = Number(id) || 1;
   const currentTab = searchParams.get('tab') || 'summary';
@@ -92,7 +98,9 @@ export const PatientEhrPage: React.FC = () => {
         ] = results;
 
         if (patientRes.status === 'fulfilled') {
-          setPatient(patientRes.value);
+          const loadedPatient = patientRes.value;
+          setPatient(loadedPatient);
+          setActivePatientContext(loadedPatient, loadedPatient.current_encounter_id ? `ENC-${loadedPatient.current_encounter_id}` : `ENC-${loadedPatient.id}`);
         } else {
           setError('Unable to load patient EHR record from database.');
         }
@@ -132,7 +140,7 @@ export const PatientEhrPage: React.FC = () => {
     { id: 'procedures', label: `Procedures (${procedures.length})`, icon: Stethoscope },
     { id: 'notes', label: `Clinical Notes (${notes.length})`, icon: BookOpen },
     { id: 'risk', label: 'Readmission Risk (ML)', icon: BrainCircuit, badge: `${Math.round((patient?.risk_probability || 0.68) * 100)}% Risk` },
-    { id: 'chat', label: 'Clinical AI Copilot', icon: Bot, badge: 'Gemini' },
+    { id: 'post-discharge', label: 'Post-Discharge Recovery', icon: HeartPulse, badge: 'Care Continuity' },
     { id: 'discharge', label: 'Discharge Plan', icon: ClipboardCheck, badge: 'Active' },
   ];
 
@@ -165,7 +173,7 @@ export const PatientEhrPage: React.FC = () => {
   return (
     <div className="space-y-4 text-slate-900">
       {/* Action Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/patients')}
@@ -179,19 +187,22 @@ export const PatientEhrPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Readmission Model Readiness Indicator */}
-          <div className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 text-[11px] font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Readmission Model Readiness: Ready</span>
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Ask Copilot Context Button */}
+          <button
+            onClick={() => openCopilot('GENERAL_SUMMARY', `Provide a comprehensive clinical synthesis for ${patient.first_name} ${patient.last_name}.`)}
+            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100/80 text-sky-900 border border-sky-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+            <span>Ask Copilot Review</span>
+          </button>
 
           <button
             onClick={() => navigate(`/reports?patientId=${patient.id}`)}
             className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Print Discharge Summary</span>
+            <span>Discharge Summary</span>
           </button>
           <button
             onClick={() => navigate(`/reports?patientId=${patient.id}`)}
@@ -266,9 +277,11 @@ export const PatientEhrPage: React.FC = () => {
         {currentTab === 'procedures' && <ProceduresTab procedures={procedures} />}
         {currentTab === 'notes' && <NotesTab notes={notes} />}
         {currentTab === 'risk' && <RiskAnalysisTab patient={patient} />}
-        {currentTab === 'chat' && <ChatTab patient={patient} />}
+        {currentTab === 'post-discharge' && <PostDischargeTab patientId={patient.id} />}
         {currentTab === 'discharge' && <DischargePlanTab patient={patient} />}
+        {currentTab === 'chat' && <ChatTab patient={patient} />}
       </div>
     </div>
   );
 };
+

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Pill, AlertTriangle, CheckCircle, Clock, ShieldCheck, User } from 'lucide-react';
+import { Pill, AlertTriangle, CheckCircle, Clock, ShieldCheck, User, Sparkles } from 'lucide-react';
 import { Medication } from '../../types/clinical';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 interface MedicationsTabProps {
   medications: Medication[];
@@ -8,6 +9,7 @@ interface MedicationsTabProps {
 
 export const MedicationsTab: React.FC<MedicationsTabProps> = ({ medications }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'held'>('all');
+  const { openCopilot } = useCopilot();
 
   const filteredMeds = medications.filter((m) => {
     if (activeFilter === 'active') return m.is_active;
@@ -26,33 +28,44 @@ export const MedicationsTab: React.FC<MedicationsTabProps> = ({ medications }) =
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={() => openCopilot('MEDICATIONS', 'Review the active medication regimen, verify insulin titration status, and check for polypharmacy interaction risks.')}
+            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
           >
-            All ({medications.length})
-          </button>
-          <button
-            onClick={() => setActiveFilter('active')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeFilter === 'active' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Active ({medications.filter((m) => m.is_active).length})
-          </button>
-          <button
-            onClick={() => setActiveFilter('held')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              activeFilter === 'held' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Held / Discontinued ({medications.filter((m) => !m.is_active || m.status === 'Held').length})
+            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+            <span>Ask Copilot Med Review</span>
           </button>
         </div>
       </div>
+
+      <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+            activeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          All ({medications.length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('active')}
+          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+            activeFilter === 'active' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Active ({medications.filter((m) => m.is_active).length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('held')}
+          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+            activeFilter === 'held' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Held / Discontinued ({medications.filter((m) => !m.is_active || m.status === 'Held').length})
+        </button>
+      </div>
+
 
       {/* Polypharmacy Notice */}
       {medications.filter((m) => m.is_active).length >= 8 && (

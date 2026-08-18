@@ -12,11 +12,13 @@ import {
   Building2,
   X,
   Stethoscope,
-  Activity
+  Activity,
+  Sparkles
 } from 'lucide-react';
 import { patientService } from '../../services/patientService';
 import { Patient } from '../../types/clinical';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 export const Header: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,6 +29,8 @@ export const Header: React.FC = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isOpen: isCopilotOpen, toggleCopilot, activePatient } = useCopilot();
+
 
   // Update clock every minute
   useEffect(() => {
@@ -170,7 +174,7 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Right Utility Bar */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {/* Live Clinical Clock */}
         <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded border border-slate-200">
           <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -179,11 +183,26 @@ export const Header: React.FC = () => {
           </span>
         </div>
 
-        {/* System Node Status Badge */}
-        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-          <span>CDS Node Online</span>
-        </div>
+        {/* PROMINENT CLINICAL COPILOT BUTTON */}
+        <button
+          onClick={toggleCopilot}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs border ${
+            isCopilotOpen
+              ? 'bg-slate-900 text-white border-slate-800 ring-2 ring-sky-500/20'
+              : activePatient
+              ? 'bg-sky-50 hover:bg-sky-100/80 text-sky-900 border-sky-300 ring-1 ring-sky-400/30'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+          }`}
+          title="Open Clinical AI Copilot Workspace (Ctrl+K)"
+        >
+          <Sparkles className={`w-3.5 h-3.5 ${isCopilotOpen ? 'text-sky-400' : 'text-sky-600'}`} />
+          <span>Clinical Copilot</span>
+          {activePatient && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide bg-emerald-100 text-emerald-800 border border-emerald-300">
+              Patient Context Active
+            </span>
+          )}
+        </button>
 
         {/* Alerts Button */}
         <button
@@ -213,3 +232,4 @@ export const Header: React.FC = () => {
     </header>
   );
 };
+

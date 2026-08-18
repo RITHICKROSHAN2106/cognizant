@@ -117,17 +117,23 @@ class MemoryDocumentCollection:
                 matches.append(res)
         return MemoryCursor(matches)
 
-    def update_one(self, filter_query: Dict[str, Any], update: Dict[str, Any]):
+    def update_one(self, filter_query: Dict[str, Any], update: Dict[str, Any], upsert: bool = False):
         doc = self.find_one(filter_query)
         if doc:
-            # find original in _data
             for original in self._data:
                 if all(original.get(k) == filter_query[k] for k in filter_query):
                     if "$set" in update:
                         original.update(update["$set"])
                     break
-            return type("UpdateResult", (), {"matched_count": 1, "modified_count": 1})()
-        return type("UpdateResult", (), {"matched_count": 0, "modified_count": 0})()
+            return type("UpdateResult", (), {"matched_count": 1, "modified_count": 1, "upserted_id": None})()
+        elif upsert:
+            new_doc = dict(filter_query)
+            if "$set" in update:
+                new_doc.update(update["$set"])
+            self.insert_one(new_doc)
+            return type("UpdateResult", (), {"matched_count": 0, "modified_count": 0, "upserted_id": new_doc.get("id")})()
+        return type("UpdateResult", (), {"matched_count": 0, "modified_count": 0, "upserted_id": None})()
+
 
     def delete_one(self, filter_query: Dict[str, Any]):
         for i, doc in enumerate(self._data):

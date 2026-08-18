@@ -15,17 +15,20 @@ import {
 } from 'lucide-react';
 import { Patient, DischargePlan, Recommendation } from '../../types/clinical';
 import { recommendationService } from '../../services/recommendationService';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 interface DischargePlanTabProps {
   patient: Patient;
 }
 
 export const DischargePlanTab: React.FC<DischargePlanTabProps> = ({ patient }) => {
+  const { openCopilot } = useCopilot();
   const [plan, setPlan] = useState<DischargePlan | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+
 
   // New recommendation form state
   const [newTitle, setNewTitle] = useState('');
@@ -131,10 +134,21 @@ export const DischargePlanTab: React.FC<DischargePlanTabProps> = ({ patient }) =
             <p className="text-xs text-slate-300 max-w-xl mt-1">
               Systematic safety checklist and personalized prevention interventions to prevent avoidable 30-day hospital readmissions.
             </p>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => openCopilot('DISCHARGE', 'Evaluate discharge readiness, check pending barriers, and draft clinical transition recommendations.')}
+                className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+                <span>Ask Copilot Discharge Assessment</span>
+              </button>
+            </div>
           </div>
 
           {/* Readiness Score Progress */}
           <div className="bg-slate-800/90 p-4 rounded-xl border border-slate-700 text-right shrink-0 min-w-[200px]">
+
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Discharge Readiness Score
             </div>

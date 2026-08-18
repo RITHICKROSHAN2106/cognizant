@@ -350,11 +350,15 @@ class EnterpriseDatasetService:
         """Returns highest risk inpatient encounters from the 101,766 dataset."""
         if self.df is None or self.df.empty:
             return []
-        sub = self.df[self.df['risk_probability'] >= 0.50]
-        if filter_type == 'critical':
-            sub = self.df[self.df['risk_probability'] >= 0.70]
-        sorted_sub = sub.sort_values(by='risk_probability', ascending=False).head(limit)
-        return [self._format_patient_dict(r) for _, r in sorted_sub.iterrows()]
+        min_thresh = 0.70 if filter_type == 'critical' else 0.50
+        mask = self.df['risk_probability'] >= min_thresh
+        sub = self.df[mask]
+        if sub.empty:
+            sub = self.df.nlargest(limit, 'risk_probability')
+        else:
+            sub = sub.nlargest(min(limit, len(sub)), 'risk_probability')
+        return [self._format_patient_dict(r) for _, r in sub.iterrows()]
+
 
     def search_patients(self, query: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Full-text search across all 101,766 patient records."""

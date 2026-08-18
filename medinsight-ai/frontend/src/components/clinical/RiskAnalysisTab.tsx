@@ -29,13 +29,16 @@ import {
 import { Patient, ExplanationResult, SimulationResult, SimulationInput } from '../../types/clinical';
 import { predictionService } from '../../services/predictionService';
 import { apiClient } from '../../services/api';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 interface RiskAnalysisTabProps {
   patient: Patient;
 }
 
 export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => {
+  const { openCopilot } = useCopilot();
   const [explanation, setExplanation] = useState<ExplanationResult | null>(null);
+
   const [predictionData, setPredictionData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isScoring, setIsScoring] = useState(false);
@@ -174,17 +177,29 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
             <span>Clinical Decision Support — Ground truth target features isolated from inference.</span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRunFreshPrediction}
-            disabled={isScoring}
-            className="px-3 py-1 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-bold flex items-center gap-1.5 transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isScoring ? 'animate-spin' : ''}`} />
-            <span>{isScoring ? 'Re-scoring Encounter...' : 'Re-score Encounter'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openCopilot('READMISSION_RISK', 'Explain the primary TreeSHAP drivers and risk factors contributing to this patient’s readmission score.')}
+              className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-400/30 rounded text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-rose-300" />
+              <span>Ask Copilot Explain Risk</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRunFreshPrediction}
+              disabled={isScoring}
+              className="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScoring ? 'animate-spin' : ''}`} />
+              <span>{isScoring ? 'Re-scoring...' : 'Re-score'}</span>
+            </button>
+          </div>
         </div>
       </div>
+
 
       {/* Grid: Model Feature Inputs & SHAP Explanations */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

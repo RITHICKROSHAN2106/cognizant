@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, TrendingUp, Filter, Calendar } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, TrendingUp, Filter, Calendar, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { LabResult } from '../../types/clinical';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 interface LabsTabProps {
   labs: LabResult[];
@@ -9,6 +10,7 @@ interface LabsTabProps {
 
 export const LabsTab: React.FC<LabsTabProps> = ({ labs }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const { openCopilot } = useCopilot();
 
   const categories = ['All', 'Diabetes Monitoring', 'Renal Function', 'Chemistry', 'Hematology', 'Liver Function'];
 
@@ -38,22 +40,33 @@ export const LabsTab: React.FC<LabsTabProps> = ({ labs }) => {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1 bg-slate-200/70 p-1 rounded-lg">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                selectedCategory === cat
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => openCopilot('LABS', 'Synthesize the diagnostic lab results, glycemic control status, and kidney function markers.')}
+            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+            <span>Ask Copilot Labs Review</span>
+          </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-1 bg-slate-200/70 p-1 rounded-lg">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`px-3 py-1 text-xs font-bold rounded-md transition ${
+              selectedCategory === cat
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
 
       {/* Glucose Glycemic Inpatient Trend Card */}
       <div className="clinical-card p-5">

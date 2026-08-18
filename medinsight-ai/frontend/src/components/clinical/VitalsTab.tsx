@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Heart, Activity, Thermometer, Wind, Compass, Calendar } from 'lucide-react';
+import { Heart, Activity, Thermometer, Wind, Compass, Calendar, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Observation } from '../../types/clinical';
+import { useCopilot } from '../../contexts/CopilotContext';
 
 interface VitalsTabProps {
   vitals: Observation[];
@@ -9,6 +10,7 @@ interface VitalsTabProps {
 
 export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
   const [selectedVital, setSelectedVital] = useState<'HR' | 'BP' | 'SPO2' | 'TEMP'>('HR');
+  const { openCopilot } = useCopilot();
 
   // Prepare trend data
   const chartData = [
@@ -23,14 +25,22 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({ vitals }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h2 className="text-base font-bold text-slate-900">Longitudinal Vital Signs & Observations</h2>
           <p className="text-xs text-slate-500">
             Real-time physiologic observations, continuous telemetry, and historical trend trajectories.
           </p>
         </div>
+        <button
+          onClick={() => openCopilot('VITALS', 'Summarize recent inpatient vital signs, highlight abnormal values, and assess hemodynamic stability.')}
+          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs self-start sm:self-auto transition"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+          <span>Ask Copilot Vitals Review</span>
+        </button>
       </div>
+
 
       {/* Vital Selector Tabs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

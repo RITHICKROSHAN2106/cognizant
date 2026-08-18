@@ -510,3 +510,242 @@ class SystemHealthResponse(BaseModel):
     status: str
     timestamp: datetime.datetime
     integrations: List[IntegrationItem]
+
+
+# --- Post-Discharge Recovery & Continuity of Care Schemas ---
+class FollowUpVisit(BaseModel):
+    id: int
+    patient_id: int
+    care_plan_id: Optional[int] = None
+    week_number: int  # 1, 2, 3, 4
+    visit_type: str = "Primary Care Follow-Up"  # Primary Care, Endocrinology, Cardiology, Telehealth, Home Health
+    scheduled_date: str
+    completed_date: Optional[str] = None
+    assigned_clinician: str = "Dr. Sarah Mitchell, MD"
+    status: str = "Scheduled"  # Scheduled, Completed, Pending, Missed, Rescheduled, Cancelled
+    notes: Optional[str] = None
+    outcome: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class FollowUpVisitUpdate(BaseModel):
+    scheduled_date: Optional[str] = None
+    completed_date: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    outcome: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+
+
+class MedicationSupplyItem(BaseModel):
+    id: int
+    patient_id: int
+    medication_name: str
+    dosage: str
+    frequency: str
+    prescription_date: str
+    expected_supply_date: str
+    supplied_date: Optional[str] = None
+    quantity_status: str = "30-Day Supply"
+    supplier: str = "Hospital Outpatient Pharmacy"
+    status: str = "Supplied"  # Supplied, Partially Supplied, Pending, Delayed, Unavailable, Patient Declined, Unknown
+    adherence_status: str = "Confirmed"  # Confirmed, Possible Issue, Unknown
+    last_verified: str
+    next_refill_date: str
+    verified_by: str = "Pharmacist Marcus Brody, PharmD"
+    notes: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class NutritionPlanSchema(BaseModel):
+    id: int
+    patient_id: int
+    encounter_id: Optional[int] = None
+    dietician_name: str = "Elena Rostova, RD, CDE"
+    dietician_id: Optional[int] = 1
+    plan_start_date: str
+    plan_end_date: Optional[str] = None
+    diet_type: str = "Consistent Carbohydrate Diabetes Meal Plan (1500-1800 kcal)"
+    daily_goals: List[str] = [
+        "Carbohydrate target: 45-60g per main meal",
+        "Consistent meal timing to prevent hypoglycemia",
+        "Hydration: Minimum 2.0L water daily",
+        "Sodium restriction: <2,000 mg/day"
+    ]
+    restrictions: List[str] = ["Refined sugars", "High glycemic juices", "Excessive saturated fats"]
+    status: str = "Assigned"  # Not Assigned, Assigned, In Progress, Review Due, Completed, Paused
+    adherence_status: str = "Adherent"  # Adherent, Partial, Non-Adherent, Pending Review
+    last_reviewed: str
+    next_review: str
+    clinical_notes: str = "Personalized diabetic medical nutrition therapy initiated. Bedside carbohydrate counting education completed."
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class RehabilitationSessionSchema(BaseModel):
+    id: int
+    scheduled_date: str
+    completed_date: Optional[str] = None
+    therapist: str = "David Chen, DPT"
+    session_type: str = "Physical Mobility & Gait Training"
+    status: str = "Completed"  # Scheduled, Completed, Missed, Cancelled
+    progress: str = "Tolerated well. 300ft ambulation achieved."
+    notes: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class RehabilitationPlanSchema(BaseModel):
+    id: int
+    patient_id: int
+    care_plan_id: Optional[int] = None
+    rehabilitation_type: str = "Physical Rehabilitation & Mobility Support"
+    assigned_specialist: str = "David Chen, DPT"
+    start_date: str
+    expected_end_date: str
+    frequency: str = "2 sessions / week"
+    status: str = "In Progress"  # Not Required, Assessment Required, Planned, In Progress, Paused, Completed, Escalated
+    goals: List[str] = [
+        "Independent transfers and stairs",
+        "Improve lower extremity endurance",
+        "Fall prevention home safety regimen"
+    ]
+    progress_percentage: int = 60
+    next_session: str
+    sessions: List[RehabilitationSessionSchema] = []
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class PatientCoverageSchema(BaseModel):
+    id: int
+    patient_id: int
+    coverage_type: str = "Medicare Part A & B"  # Medicare, Medicaid, Commercial / Private, Self-Pay, Government Programme
+    provider: str = "Centers for Medicare & Medicaid Services (CMS)"
+    policy_or_member_id: str = "MED-8849201"
+    coverage_status: str = "Active"  # Active, Pending Verification, Expired, Not Available, Self-Pay
+    valid_from: str = "2026-01-01"
+    valid_until: str = "2026-12-31"
+    emergency_coverage: bool = True
+    rehabilitation_coverage: bool = True
+    medication_coverage: bool = True
+    dietician_coverage: bool = True
+    followup_coverage: bool = True
+    emergency_support_eligibility: str = "Eligible"  # Eligible, Potentially Eligible, Not Eligible, Verification Required, Not Assessed
+    notes: Optional[str] = "High-Risk 30-Day Readmission Reduction Support Program Qualified"
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class PatientContactSchema(BaseModel):
+    id: int
+    patient_id: int
+    date: str
+    contact_type: str = "Phone Call"  # Phone Call, Video Consultation, In-Person Visit, Home Visit, Secure Message
+    staff_name: str = "Emma Davis, RN"
+    staff_role: str = "Care Coordinator"
+    outcome: str = "Reached - Patient stable and taking insulin as prescribed."
+    notes: str = "Verified glucometer readings (morning fasting 138 mg/dL). Week 2 PCP visit confirmed."
+    next_action: str = "Follow-up check-in call in 5 days."
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class ReadmissionEventSchema(BaseModel):
+    id: int
+    patient_id: int
+    previous_encounter_id: str
+    new_encounter_id: str
+    previous_discharge_date: str
+    readmission_date: str
+    days_since_discharge: int
+    within_30_days: bool = True
+    readmission_type: str = "Urgent Inpatient Readmission"
+    primary_diagnosis: str
+    recorded_at: str
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class PostDischargeCarePlan(BaseModel):
+    id: int
+    patient_id: int
+    mrn: str
+    patient_name: str
+    discharge_encounter_id: str
+    discharge_date: str
+    care_start_date: str
+    care_end_date: str
+    recovery_status: str = "Improving"  # Stable, Improving, Needs Attention, High Risk, Escalated, Readmitted, Follow-Up Completed
+    risk_level_at_discharge: str = "High"
+    discharge_risk_score: float = 0.68
+    current_risk_level: str = "Moderate"
+    current_risk_score: float = 0.52
+    assigned_physician: str = "Dr. Sarah Mitchell, MD"
+    care_coordinator: str = "Emma Davis, RN"
+    assigned_dietician: str = "Elena Rostova, RD, CDE"
+    assigned_rehab_specialist: str = "David Chen, DPT"
+    follow_up_completion_rate: int = 75
+    next_followup_date: str
+    follow_up_visits: List[FollowUpVisit] = []
+    medication_supplies: List[MedicationSupplyItem] = []
+    nutrition_plan: Optional[NutritionPlanSchema] = None
+    rehabilitation_plan: Optional[RehabilitationPlanSchema] = None
+    coverage: Optional[PatientCoverageSchema] = None
+    contacts: List[PatientContactSchema] = []
+    readmissions: List[ReadmissionEventSchema] = []
+    created_at: str
+    updated_at: str
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+
+
+class PostDischargePatientSummary(BaseModel):
+    patient_id: int
+    mrn: str
+    patient_name: str
+    age: int
+    sex: str
+    discharge_date: str
+    primary_diagnosis: str
+    discharge_risk_level: str
+    discharge_risk_score: float
+    current_risk_level: str
+    current_risk_score: float
+    recovery_status: str  # Stable, Improving, Needs Attention, High Risk, Escalated, Readmitted, Follow-Up Completed
+    next_visit_date: str
+    next_visit_status: str
+    medication_supply_status: str
+    diet_plan_status: str
+    rehab_status: str
+    coverage_status: str
+    care_coordinator: str
+    action_required: Optional[str] = None
+    follow_up_completion_percent: int = 0
+
+    class Config:
+        extra = "allow"
+        from_attributes = True
+

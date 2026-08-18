@@ -53,11 +53,89 @@ def query_dataset_patients(
     )
 
 
+@router.post("/check-duplicate", response_model=ApiResponse[List[Dict[str, Any]]])
+def check_duplicate_patient(
+    payload: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    Checks for existing patient records by MRN, Name, DOB, or Phone before registration.
+    Enables returning patient encounter creation rather than duplicate master identity creation.
+    """
+    first_name = (payload.get("first_name") or "").strip().lower()
+    last_name = (payload.get("last_name") or "").strip().lower()
+    dob = payload.get("dob")
+    phone = (payload.get("phone") or "").strip()
+    mrn = (payload.get("mrn") or "").strip()
+
+    from app.services.dataset_service import dataset_service
+    matches = []
+    seen_ids = set()
+
+    # 1. Search in MongoDB Active Records
+    if db:
+        or_clauses = []
+        if mrn:
+            or_clauses.append({"mrn": mrn})
+        if first_name and last_name:
+            or_clauses.append({
+                "first_name": {"$regex": f"^{first_name}$", "$options": "i"},
+                "last_name": {"$regex": f"^{last_name}$", "$options": "i"}
+            })
+        if phone:
+            or_clauses.append({"phone": phone})
+
+        if or_clauses:
+            for doc in db["patients"].find({"$or": or_clauses}).limit(5):
+                pid = doc.get("id")
+                if pid not in seen_ids:
+                    seen_ids.add(pid)
+                    matches.append({
+                        "id": pid,
+                        "mrn": doc.get("mrn", f"MRN-{pid}"),
+                        "name": f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip(),
+                        "dob": doc.get("dob", "1965-05-14"),
+                        "age": doc.get("age", 60),
+                        "phone": doc.get("phone", "555-0192"),
+                        "primary_diagnosis": doc.get("primary_diagnosis", "Clinical Observation"),
+                        "risk_level": doc.get("risk_level", "Moderate"),
+                        "source": "MongoDB Master Registry"
+                    })
+
+    # 2. Search in Master Dataset
+    if len(matches) < 3 and (first_name or last_name or mrn):
+        search_term = mrn or f"{first_name} {last_name}".strip()
+        ds_res = dataset_service.query_patients(search=search_term, page=1, page_size=5)["items"]
+        for p in ds_res:
+            pid = p.get("id")
+            if pid not in seen_ids:
+                seen_ids.add(pid)
+                matches.append({
+                    "id": pid,
+                    "mrn": p.get("mrn", f"MRN-{pid}"),
+                    "name": f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
+                    "dob": p.get("dob", "1965-05-14"),
+                    "age": p.get("age", 60),
+                    "phone": p.get("phone", "555-0192"),
+                    "primary_diagnosis": p.get("primary_diagnosis", "Clinical Observation"),
+                    "risk_level": p.get("risk_level", "Moderate"),
+                    "source": "Clinical Master Index"
+                })
+
+    return ApiResponse(
+        success=True,
+        data=matches,
+        message=f"Found {len(matches)} matching patient records"
+    )
+
+
 @router.get("", response_model=ApiResponse[List[PatientSummary]])
 def list_patients(
     risk_level: Optional[str] = Query(None, description="Filter by risk tier: Critical, High, Moderate, Low"),
     ward: Optional[str] = Query(None, description="Filter by ward location"),
     search: Optional[str] = Query(None, description="Search by name or MRN"),
+
     skip: int = 0,
     limit: int = 100,
     db=Depends(get_mongodb),
