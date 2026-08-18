@@ -64,14 +64,14 @@ export const AnalyticsPage: React.FC = () => {
             Hospital Readmission Analytics & Population Intelligence
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Multicenter clinical population analytics, machine learning model calibration, and responsible AI fairness auditing across 101,766 admissions.
+            Multicenter clinical population analytics, machine learning model calibration, and responsible AI fairness auditing across {(analytics?.total_dataset_encounters || 101766).toLocaleString()} admissions.
           </p>
         </div>
 
         <div className="flex items-center gap-2 font-mono text-xs">
           <span className="px-3 py-1.5 bg-indigo-50 text-indigo-900 rounded-lg border border-indigo-200 font-bold flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-indigo-600" />
-            N = 101,766 Dataset Encounters
+            N = {(analytics?.total_dataset_encounters || 101766).toLocaleString()} Monitored Encounters
           </span>
         </div>
       </div>

@@ -19,6 +19,11 @@ export const postDischargeService = {
     return response.data.data;
   },
 
+  getPostDischargeCounts: async (): Promise<Record<string, number>> => {
+    const response = await apiClient.get('/post-discharge/counts');
+    return response.data.data;
+  },
+
   getPatientPostDischargePlan: async (patientId: number): Promise<PostDischargeCarePlan> => {
     const response = await apiClient.get(`/patients/${patientId}/post-discharge`);
     return response.data.data;

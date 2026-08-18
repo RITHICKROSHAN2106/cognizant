@@ -48,10 +48,10 @@ def query_dataset_patients(
         sort_desc=sort_desc
     )
 
-    # On page 1, merge registered clinical patients from MongoDB at the top
-    if page == 1 and db:
-        custom_docs = []
+    # Merge dynamic count of registered clinical patients from MongoDB
+    if db:
         try:
+            import math
             q_filter = {"record_source": "CLINICAL_REGISTRATION"}
             if risk_level and risk_level != "All":
                 q_filter["risk_level"] = risk_level
@@ -62,42 +62,44 @@ def query_dataset_patients(
                     {"mrn": {"$regex": search, "$options": "i"}},
                     {"primary_diagnosis": {"$regex": search, "$options": "i"}}
                 ]
-            for doc in db["patients"].find(q_filter).sort("created_at", -1):
-                pid = doc.get("id")
-                # find corresponding encounter
-                enc = db["encounters"].find_one({"patient_id": pid}) or {}
-                custom_item = {
-                    "id": pid,
-                    "patient_nbr": pid,
-                    "encounter_id": enc.get("encounter_id", f"ENC-{pid}"),
-                    "mrn": doc.get("mrn", f"MRN-{pid}"),
-                    "first_name": doc.get("first_name", "Patient"),
-                    "last_name": doc.get("last_name", "Record"),
-                    "full_name": f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip(),
-                    "age": doc.get("age", 55),
-                    "sex": doc.get("sex", "Female"),
-                    "race": doc.get("race", "Caucasian"),
-                    "current_ward": doc.get("current_ward", "Ward 5B"),
-                    "primary_diagnosis": doc.get("primary_diagnosis", "Clinical Observation"),
-                    "diag_1": enc.get("diag_1", "250.00"),
-                    "length_of_stay": enc.get("length_of_stay", doc.get("length_of_stay", 1)),
-                    "time_in_hospital": enc.get("time_in_hospital", 1),
-                    "num_medications": enc.get("num_medications", 5),
-                    "number_inpatient": enc.get("number_inpatient", 0),
-                    "a1c_result": enc.get("a1c_result", "Normal"),
-                    "insulin": enc.get("insulin", "No"),
-                    "readmitted_outcome": "NO",
-                    "risk_probability": doc.get("risk_probability", 0.45),
-                    "risk_level": doc.get("risk_level", "Moderate"),
-                    "is_custom_registration": True
-                }
-                custom_docs.append(custom_item)
+            custom_count = db["patients"].count_documents(q_filter)
+            res["total"] = res.get("total", 101766) + custom_count
+            res["total_pages"] = math.ceil(res["total"] / page_size) if page_size > 0 else 1
+
+            if page == 1 and custom_count > 0:
+                custom_docs = []
+                for doc in db["patients"].find(q_filter).sort("created_at", -1):
+                    pid = doc.get("id")
+                    enc = db["encounters"].find_one({"patient_id": pid}) or {}
+                    custom_item = {
+                        "id": pid,
+                        "patient_nbr": pid,
+                        "encounter_id": enc.get("encounter_id", f"ENC-{pid}"),
+                        "mrn": doc.get("mrn", f"MRN-{pid}"),
+                        "first_name": doc.get("first_name", "Patient"),
+                        "last_name": doc.get("last_name", "Record"),
+                        "full_name": f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip(),
+                        "age": doc.get("age", 55),
+                        "sex": doc.get("sex", "Female"),
+                        "race": doc.get("race", "Caucasian"),
+                        "current_ward": doc.get("current_ward", "Ward 5B"),
+                        "primary_diagnosis": doc.get("primary_diagnosis", "Clinical Observation"),
+                        "diag_1": enc.get("diag_1", "250.00"),
+                        "length_of_stay": enc.get("length_of_stay", doc.get("length_of_stay", 1)),
+                        "time_in_hospital": enc.get("time_in_hospital", 1),
+                        "num_medications": enc.get("num_medications", 5),
+                        "number_inpatient": enc.get("number_inpatient", 0),
+                        "a1c_result": enc.get("a1c_result", "Normal"),
+                        "insulin": enc.get("insulin", "No"),
+                        "readmitted_outcome": "NO",
+                        "risk_probability": doc.get("risk_probability", 0.45),
+                        "risk_level": doc.get("risk_level", "Moderate"),
+                        "is_custom_registration": True
+                    }
+                    custom_docs.append(custom_item)
+                res["items"] = custom_docs + res.get("items", [])
         except Exception as e:
             pass
-
-        if custom_docs:
-            res["items"] = custom_docs + res.get("items", [])
-            res["total"] = res.get("total", 101766) + len(custom_docs)
 
     return ApiResponse(
         success=True,
@@ -279,7 +281,7 @@ def list_patients(
 
 @router.get("/high-risk", response_model=ApiResponse[List[PatientSummary]])
 def get_high_risk_patients(
-    filter_type: Optional[str] = Query(None, description="Filter: all, critical, pending_review, high_utilizers"),
+    filter_type: Optional[str] = Query(None, description="Filter: all, critical, high, discharging_today, discharging_soon, med_rec_pending"),
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -289,10 +291,22 @@ def get_high_risk_patients(
 
     # 1. Fetch registered high-risk patients
     if db:
-        for p in db["patients"].find({"record_source": "CLINICAL_REGISTRATION", "risk_probability": {"$gte": 0.50}}):
+        reg_query: Dict[str, Any] = {"record_source": "CLINICAL_REGISTRATION"}
+        if filter_type == "critical":
+            reg_query["$or"] = [{"risk_level": "Critical"}, {"risk_probability": {"$gte": 0.70}}]
+        elif filter_type == "high":
+            reg_query["$or"] = [{"risk_level": "High"}, {"risk_probability": {"$gte": 0.45, "$lt": 0.70}}]
+        elif filter_type in ["discharging_today", "discharging_soon"]:
+            reg_query["length_of_stay"] = {"$lte": 2}
+        else:
+            reg_query["risk_probability"] = {"$gte": 0.45}
+
+        for p in db["patients"].find(reg_query):
             pid = p.get("id")
             if pid and pid not in seen_ids:
                 seen_ids.add(pid)
+                prob = float(p.get("risk_probability", 0.55))
+                tier = p.get("risk_level") or ("Critical" if prob >= 0.70 else "High" if prob >= 0.45 else "Moderate")
                 registered_high_risk.append(PatientSummary(
                     id=pid,
                     mrn=p.get("mrn", f"MRN-{pid}"),
@@ -309,8 +323,8 @@ def get_high_risk_patients(
                     current_room=p.get("current_room", "5B-101"),
                     admission_status=p.get("admission_status", "Inpatient"),
                     primary_diagnosis=p.get("primary_diagnosis", "Observation"),
-                    risk_probability=p.get("risk_probability", 0.65),
-                    risk_level=p.get("risk_level", "High"),
+                    risk_probability=prob,
+                    risk_level=tier,
                     length_of_stay=p.get("length_of_stay", 1)
                 ))
 
@@ -329,13 +343,13 @@ def get_high_risk_patients(
             race=p.get("race", "Caucasian"),
             ethnicity=p.get("ethnicity", "Non-Hispanic"),
             safety_badges=p.get("safety_badges", []),
-            current_ward=p.get("current_ward"),
-            current_room=p.get("current_room"),
+            current_ward=p.get("current_ward", "Ward 5B"),
+            current_room=p.get("current_room", "5B-102"),
             admission_status=p.get("admission_status", "Inpatient"),
-            primary_diagnosis=p.get("primary_diagnosis"),
-            risk_probability=p.get("risk_probability", 0.72),
-            risk_level=p.get("risk_level", "Critical"),
-            length_of_stay=p.get("length_of_stay", 3)
+            primary_diagnosis=p.get("primary_diagnosis", "Type 2 Diabetes Mellitus"),
+            risk_probability=float(p.get("risk_probability", 0.55)),
+            risk_level=p.get("risk_level", "High"),
+            length_of_stay=int(p.get("length_of_stay", 3))
         )
         for p in items
         if p.get("id") not in seen_ids

@@ -90,14 +90,14 @@ export const ClinicalOverviewPage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Real-time 30-day readmission risk stratification, active bed monitoring, and 101,766 clinical admissions data engine.
+            Real-time 30-day readmission risk stratification, active bed monitoring, and {(analytics?.total_dataset_encounters || 101766).toLocaleString()} clinical admissions data engine.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900">
             <Database className="w-3.5 h-3.5 text-indigo-600" />
-            <span>101,766 Clinical Dataset Cohort</span>
+            <span>{(analytics?.total_dataset_encounters || 101766).toLocaleString()} Monitored Census</span>
           </div>
           <button
             onClick={() => navigate('/patients')}
@@ -114,7 +114,7 @@ export const ClinicalOverviewPage: React.FC = () => {
         <div>
           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-sky-600" />
-            <span>Enterprise 101,766 Inpatient Clinical Population & Surveillance Metrics</span>
+            <span>Enterprise Population & Readmission Surveillance Metrics</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 1. Total Encounters */}
@@ -136,10 +136,10 @@ export const ClinicalOverviewPage: React.FC = () => {
                 <ShieldAlert className="w-4 h-4 text-rose-600" />
               </div>
               <div className="text-2xl font-black text-rose-700 mt-1">
-                32,166
+                {(((analytics?.risk_distribution?.Critical || 11366) + (analytics?.risk_distribution?.High || 20800))).toLocaleString()}
               </div>
               <div className="text-[11px] text-rose-700/80 mt-0.5">
-                11,366 Critical (≥70%) • 20,800 High (50-69%)
+                {(analytics?.risk_distribution?.Critical || 11366).toLocaleString()} Critical (≥70%) • {(analytics?.risk_distribution?.High || 20800).toLocaleString()} High (50-69%)
               </div>
             </div>
 
@@ -172,17 +172,17 @@ export const ClinicalOverviewPage: React.FC = () => {
         </div>
 
 
-        {/* Category B: Enterprise 1-Lakh Clinical Cohort Intelligence */}
+        {/* Category B: Enterprise Clinical Cohort Intelligence */}
         <div className="pt-2">
           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Enterprise 1-Lakh Clinical Dataset Population Benchmarks (101,766 Encounters)</span>
+            <span>Enterprise Clinical Dataset Population Benchmarks ({(analytics?.total_dataset_encounters || 101766).toLocaleString()} Encounters)</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="clinical-card p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800">
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Analyzed Encounters</div>
-              <div className="text-xl font-black text-cyan-400 mt-1">101,766</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">71,518 Unique Patients</div>
+              <div className="text-xl font-black text-cyan-400 mt-1">{(analytics?.total_dataset_encounters || 101766).toLocaleString()}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">{(analytics?.total_unique_patients || 71518).toLocaleString()} Unique Patients</div>
             </div>
 
             <div className="clinical-card p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800">

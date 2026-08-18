@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import { ApiResponse, Patient, PatientCreatePayload, ChatMessage, ChatResponse, ReportSummaryResponse, DatasetQueryResult } from '../types/clinical';
+import { downloadBlob, getDownloadFilename } from '../utils/downloadFile';
 
 export const patientService = {
   queryDatasetPatients: async (params: {
@@ -27,27 +28,10 @@ export const patientService = {
   },
 
 
-  searchPatients: async (query: string): Promise<Patient[]> => {
-    const response = await apiClient.get<ApiResponse<Patient[]>>('/patients/search', {
-      params: { q: query },
-    });
-    return response.data.data;
-  },
-
   getHighRiskPatients: async (filterType?: string): Promise<Patient[]> => {
     const params: Record<string, string> = {};
     if (filterType) params.filter_type = filterType;
     const response = await apiClient.get<ApiResponse<Patient[]>>('/patients/high-risk', { params });
-    return response.data.data;
-  },
-
-  getPatientById: async (patientId: number): Promise<Patient> => {
-    const response = await apiClient.get<ApiResponse<Patient>>(`/patients/${patientId}`);
-    return response.data.data;
-  },
-
-  createPatient: async (payload: PatientCreatePayload): Promise<Patient> => {
-    const response = await apiClient.post<ApiResponse<Patient>>('/patients', payload);
     return response.data.data;
   },
 
@@ -57,6 +41,35 @@ export const patientService = {
       history,
     });
     return response.data.data;
+  },
+
+  searchPatients: async (query: string): Promise<Patient[]> => {
+    const response = await apiClient.get<ApiResponse<Patient[]>>('/patients/search', { params: { q: query } });
+    return response.data.data;
+  },
+
+  getPatientById: async (id: number): Promise<Patient> => {
+    const response = await apiClient.get<ApiResponse<Patient>>(`/patients/${id}`);
+    return response.data.data;
+  },
+
+  createPatient: async (payload: PatientCreatePayload): Promise<Patient> => {
+    const response = await apiClient.post<ApiResponse<Patient>>('/patients', payload);
+    return response.data.data;
+  },
+
+  getPatientChatHistory: async (patientId: number): Promise<ChatMessage[]> => {
+    const response = await apiClient.get<ApiResponse<ChatMessage[]>>(`/patients/${patientId}/chat`);
+    return response.data.data;
+  },
+
+  sendPatientChatMessage: async (patientId: number, message: string): Promise<ChatResponse> => {
+    const response = await apiClient.post<ApiResponse<ChatResponse>>(`/patients/${patientId}/chat`, { message });
+    return response.data.data;
+  },
+
+  clearPatientChatHistory: async (patientId: number): Promise<void> => {
+    await apiClient.delete(`/patients/${patientId}/chat`);
   },
 
   getPatientReport: async (patientId: number): Promise<ReportSummaryResponse> => {
@@ -69,27 +82,73 @@ export const patientService = {
   },
 
   downloadReportPdf: async (patientId: number, mrn?: string, reportType: string = 'discharge'): Promise<void> => {
-    const url = `/api/patients/${patientId}/report/pdf?report_type=${reportType}`;
+    const today = new Date().toISOString().split('T')[0];
     const prefix = reportType === 'discharge' ? 'Discharge_Summary' : 'Clinical_Report';
     const mrnClean = (mrn || `P${patientId}`).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${prefix}_${mrnClean}.pdf`;
+    const fallbackFilename = `${mrnClean}_${prefix}_${today}.pdf`;
 
-    // Native HTTP link download - avoids synthetic blob UUID caching in Chrome
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', filename);
-    link.download = filename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
+    const response = await apiClient.get(`/patients/${patientId}/report/pdf`, {
+      params: { report_type: reportType },
+      responseType: 'blob',
+    });
 
-    setTimeout(() => {
-      if (document.body.contains(link)) {
-        document.body.removeChild(link);
-      }
-    }, 2000);
+    const disposition = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+    const filename = getDownloadFilename(disposition, fallbackFilename);
+
+    downloadBlob(response.data, 'application/pdf', filename);
+  },
+
+  downloadReportCsv: async (patientId: number, mrn?: string, reportType: string = 'discharge'): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0];
+    const prefix = reportType === 'discharge' ? 'Discharge_Summary' : 'Clinical_Report';
+    const mrnClean = (mrn || `P${patientId}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fallbackFilename = `${mrnClean}_${prefix}_${today}.csv`;
+
+    const response = await apiClient.get(`/patients/${patientId}/report/csv`, {
+      params: { report_type: reportType },
+      responseType: 'blob',
+    });
+
+    const disposition = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+    const filename = getDownloadFilename(disposition, fallbackFilename);
+
+    downloadBlob(response.data, 'text/csv;charset=utf-8', filename);
+  },
+
+  downloadCohortCsv: async (params?: { search?: string; risk_level?: string; readmission_status?: string }): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0];
+    const fallbackFilename = `MedInsight_Patient_Risk_Cohort_Registry_${today}.csv`;
+    const queryParams: Record<string, any> = {};
+    if (params?.search) queryParams.search = params.search;
+    if (params?.risk_level && params.risk_level !== 'All') queryParams.risk_level = params.risk_level;
+    if (params?.readmission_status && params.readmission_status !== 'All') queryParams.readmission_status = params.readmission_status;
+
+    const response = await apiClient.get('/reports/cohort/csv', {
+      params: queryParams,
+      responseType: 'blob',
+    });
+
+    const disposition = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+    const filename = getDownloadFilename(disposition, fallbackFilename);
+
+    downloadBlob(response.data, 'text/csv;charset=utf-8', filename);
+  },
+
+  downloadCohortPdf: async (params?: { search?: string; risk_level?: string; limit?: number }): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0];
+    const fallbackFilename = `MedInsight_Patient_Risk_Cohort_Report_${today}.pdf`;
+    const queryParams: Record<string, any> = { limit: params?.limit || 150 };
+    if (params?.search) queryParams.search = params.search;
+    if (params?.risk_level && params.risk_level !== 'All') queryParams.risk_level = params.risk_level;
+
+    const response = await apiClient.get('/reports/cohort/pdf', {
+      params: queryParams,
+      responseType: 'blob',
+    });
+
+    const disposition = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+    const filename = getDownloadFilename(disposition, fallbackFilename);
+
+    downloadBlob(response.data, 'application/pdf', filename);
   },
 };
-
-
-

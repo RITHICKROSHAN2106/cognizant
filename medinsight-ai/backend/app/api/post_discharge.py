@@ -38,6 +38,20 @@ def list_post_discharge_patients(
     )
 
 
+@router.get("/post-discharge/counts", response_model=ApiResponse[Dict[str, int]])
+def get_post_discharge_counts(
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """Returns dynamic database-backed counts for each post-discharge surveillance category."""
+    counts = post_discharge_service.get_post_discharge_counts(db=db)
+    return ApiResponse(
+        success=True,
+        data=counts,
+        message="Post-discharge population counts retrieved"
+    )
+
+
 @router.get("/patients/{patient_id}/post-discharge", response_model=ApiResponse[PostDischargeCarePlan])
 def get_patient_post_discharge_plan(
     patient_id: int,

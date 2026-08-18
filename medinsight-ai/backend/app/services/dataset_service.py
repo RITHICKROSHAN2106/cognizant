@@ -257,6 +257,28 @@ class EnterpriseDatasetService:
             "items": items
         }
 
+    def get_high_risk_patients(self, filter_type: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        if self.df is None or self.df.empty:
+            return []
+        
+        sub = self.df
+        if filter_type == "critical":
+            sub = sub[sub['risk_level'] == 'Critical']
+        elif filter_type == "high":
+            sub = sub[sub['risk_level'] == 'High']
+        elif filter_type in ["discharging_today", "discharging_soon"]:
+            sub = sub[(sub['time_in_hospital'] <= 2) & (sub['risk_probability'] >= 0.45)]
+        elif filter_type == "med_rec_pending":
+            sub = sub[(sub['num_medications'] >= 15) & (sub['risk_probability'] >= 0.45)]
+        else:
+            sub = sub[sub['risk_probability'] >= 0.45]
+
+        sub = sub.sort_values(by='risk_probability', ascending=False)
+        items = []
+        for _, r in sub.head(limit).iterrows():
+            items.append(self._format_patient_dict(r))
+        return items
+
     def _format_patient_dict(self, r: Any) -> Dict[str, Any]:
         p_nbr = int(r.get('patient_nbr', r.get('encounter_id', 1)))
         enc_id = int(r.get('encounter_id', p_nbr))

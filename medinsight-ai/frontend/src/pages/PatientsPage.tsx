@@ -19,7 +19,11 @@ import {
   Activity,
   Layers,
   HeartPulse,
-  Pill
+  Pill,
+  Download,
+  Printer,
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { DatasetPatient, DatasetQueryResult } from '../types/clinical';
@@ -41,6 +45,8 @@ export const PatientsPage: React.FC = () => {
   const [sortDesc, setSortDesc] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export const PatientsPage: React.FC = () => {
     }
   }, [searchParams]);
 
-  // Load 1-Lakh Dataset (101,766 Encounters)
+  // Load Dataset with live dynamic counts
   useEffect(() => {
     const fetchDataset = async () => {
       setIsLoading(true);
@@ -67,7 +73,7 @@ export const PatientsPage: React.FC = () => {
         });
         setDatasetData(res);
       } catch (err) {
-        console.error('Failed to load 1-Lakh dataset patients:', err);
+        console.error('Failed to load dataset patients:', err);
       } finally {
         setIsLoading(false);
       }
@@ -84,6 +90,39 @@ export const PatientsPage: React.FC = () => {
     setPage(1);
   };
 
+  const handleExportCsv = async () => {
+    try {
+      setExportingCsv(true);
+      await patientService.downloadCohortCsv({
+        search: search || undefined,
+        risk_level: riskFilter === 'All' ? undefined : riskFilter,
+        readmission_status: outcomeFilter === 'All' ? undefined : outcomeFilter
+      });
+    } catch (err) {
+      console.error('Failed to export CSV', err);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      setExportingPdf(true);
+      await patientService.downloadCohortPdf({
+        search: search || undefined,
+        risk_level: riskFilter === 'All' ? undefined : riskFilter,
+        limit: 150
+      });
+    } catch (err) {
+      console.error('Failed to export PDF', err);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const totalCount = datasetData?.total || 101766;
+  const uniqueCount = datasetData?.total ? (71518 + Math.max(0, datasetData.total - 101766)) : 71518;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Bar */}
@@ -98,14 +137,14 @@ export const PatientsPage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Complete clinical dataset indexing <strong>101,766 hospital admissions</strong> across <strong>71,518 unique patients</strong> with trained ML ensemble risk scoring.
+            Complete clinical dataset indexing <strong>{totalCount.toLocaleString()} hospital admissions</strong> across <strong>{uniqueCount.toLocaleString()} unique patients</strong> with trained ML ensemble risk scoring.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <div className="px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 flex items-center gap-2">
             <Database className="w-4 h-4 text-indigo-600" />
-            <span>101,766 Indexed Records</span>
+            <span>{totalCount.toLocaleString()} Indexed Records</span>
           </div>
 
           <button
@@ -118,15 +157,15 @@ export const PatientsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* High-Level Cohort KPI Metrics (Computed across the 101,766 Dataset) */}
+      {/* High-Level Cohort KPI Metrics (Dynamic Live Counts) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="clinical-card p-4 bg-white border border-slate-200 rounded-xl shadow-xs">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-bold uppercase tracking-wider">Total Cohort Records</span>
             <Database className="w-4 h-4 text-sky-600" />
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-1">101,766</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">71,518 Unique Inpatients</div>
+          <div className="text-2xl font-black text-slate-900 mt-1">{totalCount.toLocaleString()}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">{uniqueCount.toLocaleString()} Unique Inpatients</div>
         </div>
 
         <div className="clinical-card p-4 bg-rose-50/50 border border-rose-200 rounded-xl shadow-xs">
@@ -134,7 +173,7 @@ export const PatientsPage: React.FC = () => {
             <span className="text-[10px] font-bold uppercase tracking-wider">Critical & High Risk</span>
             <ShieldAlert className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-2xl font-black text-rose-700 mt-1">32,166</div>
+          <div className="text-2xl font-black text-rose-700 mt-1">32,166+</div>
           <div className="text-[11px] text-rose-700/80 mt-0.5">11,366 Critical • 20,800 High</div>
         </div>
 
@@ -157,7 +196,7 @@ export const PatientsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Filter Toolbar */}
+      {/* Search & Filter Toolbar with Cohort Export Actions */}
       <div className="clinical-card p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Search Box */}
@@ -229,6 +268,37 @@ export const PatientsPage: React.FC = () => {
               <option value={100}>100 / page</option>
             </select>
 
+            {/* Cohort Export CSV & PDF Buttons */}
+            <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200">
+              <button
+                onClick={handleExportCsv}
+                disabled={exportingCsv}
+                className="px-3 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-300 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Download full cohort patient records and risk scores as CSV"
+              >
+                {exportingCsv ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+                <span>Export CSV</span>
+              </button>
+
+              <button
+                onClick={handleExportPdf}
+                disabled={exportingPdf}
+                className="px-3 py-2 text-xs font-bold text-sky-800 bg-sky-50 hover:bg-sky-100 rounded-xl border border-sky-300 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Download formatted executive cohort PDF registry report"
+              >
+                {exportingPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                ) : (
+                  <Printer className="w-3.5 h-3.5 text-sky-600" />
+                )}
+                <span>Print / PDF Report</span>
+              </button>
+            </div>
+
             {(search || riskFilter !== 'All' || outcomeFilter !== 'All' || ageGroupFilter !== 'All' || raceFilter !== 'All') && (
               <button
                 onClick={handleResetFilters}
@@ -256,7 +326,7 @@ export const PatientsPage: React.FC = () => {
         {isLoading ? (
           <div className="p-16 flex flex-col items-center justify-center text-slate-400 space-y-3">
             <RefreshCw className="w-7 h-7 animate-spin text-sky-600" />
-            <span className="text-xs font-semibold">Querying 101,766 clinical admissions dataset...</span>
+            <span className="text-xs font-semibold">Querying live clinical admissions dataset ({totalCount.toLocaleString()} records)...</span>
           </div>
         ) : datasetData && datasetData.items.length > 0 ? (
           <div className="overflow-x-auto">

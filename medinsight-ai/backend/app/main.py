@@ -49,13 +49,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure Hardened CORS: Explicit trusted origins only
+# Configure Hardened CORS: Explicit trusted origins + LAN & Cloud regex
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|.*\.vercel\.app|.*\.onrender\.com|.*\.azurewebsites\.net)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -97,6 +99,7 @@ app.include_router(post_discharge.router, prefix="/api")
 app.include_router(reference.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
+app.include_router(reports.reports_router, prefix="/api")
 app.include_router(predictions.router, prefix="/api")
 app.include_router(recommendations.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")

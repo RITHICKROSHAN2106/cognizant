@@ -30,6 +30,13 @@ export const PostDischargePage: React.FC = () => {
   const { openCopilot } = useCopilot();
 
   const [patients, setPatients] = useState<PostDischargePatientSummary[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({
+    all: 500,
+    high_risk: 250,
+    overdue: 120,
+    medication_pending: 180,
+    readmitted: 95
+  });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'high_risk' | 'overdue' | 'medication_pending' | 'readmitted'>('all');
@@ -39,6 +46,18 @@ export const PostDischargePage: React.FC = () => {
   const [readmissionDiag, setReadmissionDiag] = useState('Acute Hyperglycemic Crisis / Recurrent Admission');
   const [recordingReadmission, setRecordingReadmission] = useState(false);
   const [readmissionSuccess, setReadmissionSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const c = await postDischargeService.getPostDischargeCounts();
+        if (c) setCounts(c);
+      } catch (err) {
+        console.error('Failed to load post-discharge counts:', err);
+      }
+    };
+    fetchCounts();
+  }, []);
 
   useEffect(() => {
     const fetchCohort = async () => {
@@ -122,26 +141,26 @@ export const PostDischargePage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="clinical-card p-4 bg-white border border-slate-200 rounded-xl shadow-2xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Recovery Cohort</div>
-          <div className="text-2xl font-black text-slate-900 mt-1">1,248</div>
+          <div className="text-2xl font-black text-slate-900 mt-1">{counts.all.toLocaleString()}</div>
           <div className="text-[10px] text-slate-500 mt-0.5">30-Day Follow-Up Active</div>
         </div>
 
         <div className="clinical-card p-4 bg-white border border-slate-200 rounded-xl shadow-2xs">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">High-Risk Surveillance</div>
-          <div className="text-2xl font-black text-rose-700 mt-1">312</div>
+          <div className="text-2xl font-black text-rose-700 mt-1">{counts.high_risk.toLocaleString()}</div>
           <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Assigned Care Coordinator</div>
         </div>
 
         <div className="clinical-card p-4 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-Up Visits This Week</div>
-          <div className="text-2xl font-black text-sky-800 mt-1">84</div>
-          <div className="text-[10px] text-sky-600 font-semibold mt-0.5">92% On Schedule</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Visits Due / Overdue</div>
+          <div className="text-2xl font-black text-sky-800 mt-1">{counts.overdue.toLocaleString()}</div>
+          <div className="text-[10px] text-sky-600 font-semibold mt-0.5">Urgent Follow-Up</div>
         </div>
 
         <div className="clinical-card p-4 bg-white border border-slate-200 rounded-xl shadow-2xs">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Medication Continuity</div>
-          <div className="text-2xl font-black text-emerald-700 mt-1">96.4%</div>
-          <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">30-Day Supply Verified</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Medication Issues</div>
+          <div className="text-2xl font-black text-amber-700 mt-1">{counts.medication_pending.toLocaleString()}</div>
+          <div className="text-[10px] text-amber-600 font-semibold mt-0.5">Reconciliation Required</div>
         </div>
       </div>
 
@@ -162,22 +181,27 @@ export const PostDischargePage: React.FC = () => {
         {/* Filter Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {[
-            { id: 'all', label: 'All Discharged' },
-            { id: 'high_risk', label: 'High Risk' },
-            { id: 'overdue', label: 'Visits Due' },
-            { id: 'medication_pending', label: 'Med Supply Pending' },
-            { id: 'readmitted', label: 'Readmitted' }
+            { id: 'all', label: 'All Discharged', count: counts.all },
+            { id: 'high_risk', label: 'High Risk', count: counts.high_risk },
+            { id: 'overdue', label: 'Visits Due', count: counts.overdue },
+            { id: 'medication_pending', label: 'Med Issues', count: counts.medication_pending },
+            { id: 'readmitted', label: 'Readmitted', count: counts.readmitted }
           ].map((f) => (
             <button
               key={f.id}
               onClick={() => setActiveFilter(f.id as any)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === f.id
                   ? 'bg-sky-700 text-white shadow-xs'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
-              {f.label}
+              <span>{f.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeFilter === f.id ? 'bg-sky-900 text-white' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {f.count}
+              </span>
             </button>
           ))}
         </div>

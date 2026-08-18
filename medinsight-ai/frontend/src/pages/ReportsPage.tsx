@@ -23,7 +23,9 @@ import {
   FileCheck,
   AlertTriangle,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Database,
+  FileSpreadsheet
 } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { Patient, ReportSummaryResponse } from '../types/clinical';
@@ -38,8 +40,14 @@ export const ReportsPage: React.FC = () => {
   const [reportData, setReportData] = useState<ReportSummaryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
+  const [downloadingCsv, setDownloadingCsv] = useState<boolean>(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Enterprise Cohort Risk Report states
+  const [cohortRiskFilter, setCohortRiskFilter] = useState<string>('All');
+  const [exportingCohortCsv, setExportingCohortCsv] = useState<boolean>(false);
+  const [exportingCohortPdf, setExportingCohortPdf] = useState<boolean>(false);
   const navigate = useNavigate();
 
   // Load patients list for selector (supports full 101,766 search)
@@ -94,9 +102,54 @@ export const ReportsPage: React.FC = () => {
       setTimeout(() => setDownloadSuccess(null), 4000);
     } catch (err) {
       console.error('Failed to download PDF', err);
-      alert('Failed to download PDF. Please verify backend connection.');
+      alert('Unable to generate report. Please try again.');
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    if (!reportData) return;
+    try {
+      setDownloadingCsv(true);
+      setDownloadSuccess(null);
+      await patientService.downloadReportCsv(selectedPatientId, reportData.patient.mrn, reportType);
+      setDownloadSuccess('CSV report generated and downloaded successfully!');
+      setTimeout(() => setDownloadSuccess(null), 4000);
+    } catch (err) {
+      console.error('Failed to download CSV', err);
+      alert('Unable to generate report. Please try again.');
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
+
+  const handleDownloadCohortCsv = async () => {
+    try {
+      setExportingCohortCsv(true);
+      await patientService.downloadCohortCsv({
+        risk_level: cohortRiskFilter === 'All' ? undefined : cohortRiskFilter
+      });
+    } catch (err) {
+      console.error('Failed to export Cohort CSV', err);
+      alert('Unable to generate report. Please try again.');
+    } finally {
+      setExportingCohortCsv(false);
+    }
+  };
+
+  const handleDownloadCohortPdf = async () => {
+    try {
+      setExportingCohortPdf(true);
+      await patientService.downloadCohortPdf({
+        risk_level: cohortRiskFilter === 'All' ? undefined : cohortRiskFilter,
+        limit: 150
+      });
+    } catch (err) {
+      console.error('Failed to export Cohort PDF', err);
+      alert('Unable to generate report. Please try again.');
+    } finally {
+      setExportingCohortPdf(false);
     }
   };
 
@@ -131,25 +184,43 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={handlePrintSummary}
-            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-2 border border-slate-300 transition cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-2 border border-slate-300 transition cursor-pointer"
             title="Open browser print dialog for paper or save-to-PDF"
           >
             <Printer className="w-4 h-4 text-slate-600" />
-            <span>Print to Paper / PDF</span>
+            <span>Print</span>
           </button>
 
-          <a
-            href={`/api/patients/${selectedPatientId}/report/pdf?report_type=${reportType}`}
-            download={`${reportType === 'discharge' ? 'Discharge_Summary' : 'Clinical_Report'}_${(selectedPatient?.mrn || `P${selectedPatientId}`).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`}
-            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition cursor-pointer"
-            title="Download official PDF document"
+          <button
+            onClick={handleDownloadCsv}
+            disabled={downloadingCsv || !reportData}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition cursor-pointer disabled:opacity-60"
+            title="Export patient clinical records and discharge summary as structured CSV"
           >
-            <Download className="w-4 h-4" />
-            <span>Download PDF Document</span>
-          </a>
+            {downloadingCsv ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4 text-white" />
+            )}
+            <span>{downloadingCsv ? 'Preparing CSV...' : 'Export CSV'}</span>
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf || !reportData}
+            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition cursor-pointer disabled:opacity-60"
+            title="Export official patient PDF discharge summary"
+          >
+            {downloadingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Download className="w-4 h-4 text-white" />
+            )}
+            <span>{downloadingPdf ? 'Generating PDF...' : 'Export PDF'}</span>
+          </button>
         </div>
       </div>
 
@@ -261,6 +332,72 @@ export const ReportsPage: React.FC = () => {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* 3. Enterprise Cohort Risk Report Card */}
+          <div className="clinical-card p-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl shadow-md space-y-3.5 border border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-black uppercase tracking-wider text-slate-100">
+                  Enterprise Cohort Risk Report
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-700">
+                101,766+ Live
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Export the complete hospital patient census with calibrated ML readmission risk scores, ICD-9 primary diagnoses, length of stay, and attending physician sign-off.
+            </p>
+
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] uppercase font-bold text-slate-400">Risk Filter:</label>
+                <select
+                  value={cohortRiskFilter}
+                  onChange={(e) => setCohortRiskFilter(e.target.value)}
+                  className="flex-1 px-2.5 py-1 text-xs bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                >
+                  <option value="All">All Risk Tiers (101,766+)</option>
+                  <option value="Critical">Critical Risk (≥70%)</option>
+                  <option value="High">High Risk (50-69%)</option>
+                  <option value="Moderate">Moderate Risk (25-49%)</option>
+                  <option value="Low">Low Risk (&lt;25%)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={handleDownloadCohortCsv}
+                  disabled={exportingCohortCsv}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Download structured CSV patient cohort registry"
+                >
+                  {exportingCohortCsv ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                  ) : (
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  )}
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadCohortPdf}
+                  disabled={exportingCohortPdf}
+                  className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Download formatted multi-page executive PDF report"
+                >
+                  {exportingCohortPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-white" />
+                  )}
+                  <span>Export PDF</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
