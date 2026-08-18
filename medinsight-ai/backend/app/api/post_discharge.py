@@ -10,7 +10,10 @@ from app.schemas.schemas import (
     NutritionPlanSchema, RehabilitationPlanSchema, PatientCoverageSchema,
     ReadmissionEventSchema, EncounterSchema
 )
-from app.security.dependencies import get_current_user, CurrentUser, require_roles, log_audit_event
+from app.security.dependencies import (
+    get_current_user, CurrentUser, require_permission, require_any_permission, log_audit_event
+)
+from app.security.rbac import PermissionEnum
 from app.services.post_discharge_service import post_discharge_service
 
 logger = logging.getLogger("medinsight.post_discharge_api")
@@ -23,7 +26,7 @@ def list_post_discharge_patients(
     filter_status: Optional[str] = Query("all", description="Filter: all, high_risk, overdue, medication_pending, readmitted"),
     search: Optional[str] = Query(None, description="Search by name, MRN, diagnosis"),
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.FOLLOWUP_VIEW.value))
 ):
     """Returns population follow-up queue for the Post-Discharge Command Center."""
     items = post_discharge_service.list_post_discharge_patients(
@@ -87,7 +90,7 @@ def update_patient_post_discharge_plan(
     patient_id: int,
     plan_update: Dict[str, Any],
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(require_roles(["physician", "care_coordinator", "nurse", "administrator"]))
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.CARE_PLAN_UPDATE.value))
 ):
     """Updates recovery status, assigned staff, or care coordinator notes."""
     plan_update["updated_at"] = datetime.datetime.utcnow().isoformat()
@@ -129,11 +132,12 @@ def get_patient_follow_ups(
 
 
 @router.patch("/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
+@router.post("/post-discharge/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
 def update_follow_up_visit(
     visit_id: int,
     update_data: FollowUpVisitUpdate,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(require_roles(["physician", "care_coordinator", "nurse", "administrator"]))
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.FOLLOWUP_UPDATE.value))
 ):
     """Updates status or clinical notes of a scheduled follow-up visit."""
     return ApiResponse(
@@ -162,7 +166,7 @@ def get_patient_medication_supply(
 def get_patient_nutrition_plan(
     patient_id: int,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.NUTRITION_VIEW.value))
 ):
     """Returns assigned dietician medical nutrition therapy plan."""
     plan = post_discharge_service.get_post_discharge_plan(patient_id, db=db)
@@ -173,11 +177,35 @@ def get_patient_nutrition_plan(
     )
 
 
+@router.post("/post-discharge/nutrition-plan", response_model=ApiResponse[Dict[str, Any]])
+def update_nutrition_plan_mutation(
+    payload: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.NUTRITION_UPDATE.value))
+):
+    """Dietician clinical action: Updates glycemic targets, carb limits, and diet plans."""
+    pid = payload.get("patient_id", 1)
+    db["post_discharge_care_plans"].update_one(
+        {"patient_id": pid},
+        {"$set": {"nutrition_plan": payload, "updated_at": datetime.datetime.utcnow().isoformat()}},
+        upsert=True
+    )
+    log_audit_event(
+        db=db,
+        user=current_user,
+        action="NUTRITION_PLAN_UPDATED",
+        resource="post_discharge",
+        patient_id=pid,
+        details={"dietician": current_user.full_name}
+    )
+    return ApiResponse(success=True, data=payload, message="Medical Nutrition Therapy plan updated successfully.")
+
+
 @router.get("/patients/{patient_id}/rehabilitation", response_model=ApiResponse[RehabilitationPlanSchema])
 def get_patient_rehabilitation(
     patient_id: int,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REHABILITATION_VIEW.value))
 ):
     """Returns physical/occupational rehabilitation regimen and session history."""
     plan = post_discharge_service.get_post_discharge_plan(patient_id, db=db)
@@ -186,6 +214,30 @@ def get_patient_rehabilitation(
         data=RehabilitationPlanSchema(**plan.get("rehabilitation_plan")),
         message="Rehabilitation plan retrieved"
     )
+
+
+@router.post("/post-discharge/rehabilitation", response_model=ApiResponse[Dict[str, Any]])
+def update_rehabilitation_plan_mutation(
+    payload: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REHABILITATION_UPDATE.value))
+):
+    """Rehabilitation Specialist clinical action: Updates therapy protocol and milestones."""
+    pid = payload.get("patient_id", 1)
+    db["post_discharge_care_plans"].update_one(
+        {"patient_id": pid},
+        {"$set": {"rehabilitation_plan": payload, "updated_at": datetime.datetime.utcnow().isoformat()}},
+        upsert=True
+    )
+    log_audit_event(
+        db=db,
+        user=current_user,
+        action="REHABILITATION_PLAN_UPDATED",
+        resource="post_discharge",
+        patient_id=pid,
+        details={"specialist": current_user.full_name}
+    )
+    return ApiResponse(success=True, data=payload, message="Rehabilitation regimen and physical therapy protocol updated.")
 
 
 @router.get("/patients/{patient_id}/coverage", response_model=ApiResponse[PatientCoverageSchema])
@@ -208,7 +260,7 @@ def create_patient_encounter(
     patient_id: int,
     encounter_data: Dict[str, Any],
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(require_roles(["physician", "nurse", "administrator"]))
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.ENCOUNTER_CREATE.value))
 ):
     """
     Creates a new encounter for an existing patient (Returning Patient / Readmission).

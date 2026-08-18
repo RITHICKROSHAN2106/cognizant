@@ -15,57 +15,112 @@ import {
   ShieldAlert,
   HeartPulse,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  Lock,
+  Utensils,
+  Dumbbell
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
+interface NavItem {
+  label: string;
+  path: string;
+  icon: any;
+  badge?: string;
+  requiredPermission?: string;
+  requiredRoles?: string[];
+}
+
 interface NavSection {
   title: string;
-  items: {
-    label: string;
-    path: string;
-    icon: any;
-    badge?: string;
-  }[];
+  items: NavItem[];
 }
 
 export const Sidebar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, hasRole } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  const navSections: NavSection[] = [
+  const rawNavSections: NavSection[] = [
     {
-      title: 'CLINICAL',
+      title: 'CLINICAL EHR',
       items: [
         { label: 'Overview', path: '/', icon: Activity },
-        { label: 'Patient Census', path: '/patients', icon: Users },
-        { label: 'Admissions', path: '/patients/new', icon: UserPlus },
-        { label: 'Clinical Records', path: '/patients', icon: Stethoscope },
+        { label: 'Patient Census', path: '/patients', icon: Users, requiredPermission: 'patient:view' },
+        { label: 'New Admission', path: '/patients/new', icon: UserPlus, requiredPermission: 'patient:create' },
       ]
     },
     {
       title: 'CARE MANAGEMENT',
       items: [
-        { label: 'Readmission Risk', path: '/risk', icon: BrainCircuit },
-        { label: 'Post-Discharge Care', path: '/post-discharge', icon: HeartPulse },
-        { label: 'Care Coordination', path: '/high-risk', icon: ShieldAlert },
-        { label: 'Discharge Planning', path: '/reports', icon: FileText },
+        { label: 'Readmission Risk AI', path: '/risk', icon: BrainCircuit, requiredPermission: 'prediction:view' },
+        { label: 'Post-Discharge Center', path: '/post-discharge', icon: HeartPulse, requiredPermission: 'followup:view' },
+        { label: 'High-Risk Coordination', path: '/high-risk', icon: ShieldAlert, requiredPermission: 'care_plan:view' },
+        { label: 'Clinical Reports', path: '/reports', icon: FileText, requiredPermission: 'reports:view' },
       ]
     },
     {
-      title: 'OPERATIONS',
+      title: 'HOSPITAL OPERATIONS',
       items: [
-        { label: 'Analytics', path: '/analytics', icon: TrendingUp },
-        { label: 'Integrations', path: '/integrations', icon: Share2 },
+        { label: 'Analytics & KPIs', path: '/analytics', icon: TrendingUp, requiredPermission: 'analytics:view' },
+        { label: 'FHIR & Integrations', path: '/integrations', icon: Share2, requiredPermission: 'integrations:view' },
       ]
     },
     {
-      title: 'SYSTEM',
+      title: 'GOVERNANCE & SECURITY',
       items: [
-        { label: 'Administration', path: '/system-health', icon: Server },
+        {
+          label: 'Administration & RBAC',
+          path: '/admin',
+          icon: ShieldCheck,
+          badge: 'Security',
+          requiredPermission: 'users:view'
+        },
+        {
+          label: 'System Health',
+          path: '/system-health',
+          icon: Server,
+          requiredPermission: 'system:view'
+        },
       ]
     }
   ];
+
+  // Filter sections and items based on permissions
+  const navSections = rawNavSections
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        if (item.requiredPermission && !hasPermission(item.requiredPermission)) {
+          return false;
+        }
+        if (item.requiredRoles && !item.requiredRoles.some(r => hasRole(r))) {
+          return false;
+        }
+        return true;
+      })
+    }))
+    .filter(section => section.items.length > 0);
+
+  const getRoleBadgeStyle = (role?: string) => {
+    switch (role?.toLowerCase()) {
+      case 'administrator':
+      case 'super_admin':
+        return 'bg-purple-900/60 text-purple-300 border-purple-700/50';
+      case 'physician':
+        return 'bg-emerald-900/60 text-emerald-300 border-emerald-700/50';
+      case 'nurse':
+        return 'bg-blue-900/60 text-blue-300 border-blue-700/50';
+      case 'care_coordinator':
+        return 'bg-amber-900/60 text-amber-300 border-amber-700/50';
+      case 'dietician':
+        return 'bg-teal-900/60 text-teal-300 border-teal-700/50';
+      case 'rehab_specialist':
+        return 'bg-orange-900/60 text-orange-300 border-orange-700/50';
+      default:
+        return 'bg-slate-800 text-slate-300 border-slate-700';
+    }
+  };
 
   return (
     <aside
@@ -155,11 +210,18 @@ export const Sidebar: React.FC = () => {
                 {user?.full_name ? user.full_name[0] : (user?.username ? user.username[0].toUpperCase() : 'U')}
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold text-white truncate">
-                  {user?.full_name || user?.username || 'Clinical User'}
+                <div className="text-[11px] font-semibold text-white truncate flex items-center gap-1.5">
+                  <span className="truncate">{user?.full_name || user?.username || 'Staff User'}</span>
                 </div>
-                <div className="text-[9px] text-slate-400 uppercase tracking-wider truncate font-medium">
-                  {user?.role ? user.role.replace('_', ' ') : 'Staff'}
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${getRoleBadgeStyle(user?.role)}`}>
+                    {user?.role ? user.role.replace('_', ' ') : 'Staff'}
+                  </span>
+                  {user?.staff_id && (
+                    <span className="text-[8px] text-slate-500 font-mono">
+                      {user.staff_id}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

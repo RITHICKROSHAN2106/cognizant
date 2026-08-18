@@ -1,12 +1,31 @@
+export type UserRole =
+  | 'administrator'
+  | 'physician'
+  | 'nurse'
+  | 'care_coordinator'
+  | 'dietician'
+  | 'rehab_specialist'
+  | 'registration_staff'
+  | 'super_admin';
+
 export interface User {
   id: number;
+  staff_id?: string;
   email: string;
   username: string;
   full_name: string;
-  role: 'physician' | 'nurse' | 'care_coordinator' | 'administrator';
+  first_name?: string;
+  last_name?: string;
+  role: UserRole | string;
   department: string;
+  facility?: string;
+  permissions?: string[];
   is_active: boolean;
-  created_at: string;
+  must_change_password?: boolean;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+  last_login_at?: string | null;
+  created_at?: string;
 }
 
 export interface AuthState {
@@ -14,6 +33,64 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+export interface AuditLogEntry {
+  id?: string;
+  user_id?: number | null;
+  staff_id?: string | null;
+  username: string;
+  action: string;
+  resource: string;
+  patient_id?: number | null;
+  encounter_id?: string | number | null;
+  details?: Record<string, any> | null;
+  ip_address?: string | null;
+  timestamp: string;
+}
+
+export interface SecurityStatus {
+  total_staff: number;
+  active_staff: number;
+  deactivated_staff: number;
+  locked_accounts: number;
+  active_sessions: number;
+  recent_events_count: number;
+  recent_events: AuditLogEntry[];
+}
+
+export interface RolePermissionMatrix {
+  role: string;
+  display_name: string;
+  description: string;
+  category: string;
+  permissions: string[];
+  staff_count: number;
+}
+
+export interface StaffUserCreate {
+  staff_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  username: string;
+  role: string;
+  department: string;
+  facility: string;
+  temporary_password: string;
+  must_change_password: boolean;
+  permissions?: string[];
+}
+
+export interface StaffUserUpdate {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role?: string;
+  department?: string;
+  facility?: string;
+  is_active?: boolean;
+  permissions?: string[];
 }
 
 export interface Patient {

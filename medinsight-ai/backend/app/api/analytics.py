@@ -2,7 +2,10 @@ from fastapi import APIRouter, Depends
 from typing import Dict, Any, List
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import ApiResponse, AnalyticsSummary
-from app.security.dependencies import get_current_user, CurrentUser
+from app.security.dependencies import (
+    get_current_user, CurrentUser, require_permission
+)
+from app.security.rbac import PermissionEnum
 from app.services.dataset_service import dataset_service
 
 router = APIRouter(prefix="/analytics", tags=["Hospital Analytics & Responsible AI"])
@@ -11,7 +14,7 @@ router = APIRouter(prefix="/analytics", tags=["Hospital Analytics & Responsible 
 @router.get("/readmissions", response_model=ApiResponse[AnalyticsSummary])
 def get_readmission_analytics(
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.ANALYTICS_VIEW.value))
 ):
     # Calculate real-time counts from MongoDB
     custom_patients_count = db["patients"].count_documents({"record_source": "CLINICAL_REGISTRATION"}) if db is not None else 0

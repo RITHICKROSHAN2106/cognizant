@@ -7,6 +7,10 @@ from app.schemas.schemas import ApiResponse, SystemHealthResponse, IntegrationIt
 from app.ml.model_loader import model_loader
 from app.services.external_api_service import external_api_service
 from app.core.config import settings
+from app.security.dependencies import (
+    get_current_user, CurrentUser, require_permission
+)
+from app.security.rbac import PermissionEnum
 
 router = APIRouter(prefix="/system", tags=["System Health & Architecture Status"])
 
@@ -49,7 +53,10 @@ def _ping_mongodb(db) -> dict:
 
 
 @router.get("/health", response_model=ApiResponse[SystemHealthResponse])
-def get_system_health(db=Depends(get_mongodb)):
+def get_system_health(
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.SYSTEM_VIEW.value))
+):
     mongo_info = _ping_mongodb(db)
     db_status = f"{mongo_info['status']} ({mongo_info['connection_type']})"
     ml_status = "healthy" if model_loader.model else "degraded"
@@ -154,8 +161,11 @@ def get_system_health(db=Depends(get_mongodb)):
 
 
 @router.get("/integrations", response_model=ApiResponse[List[IntegrationItem]])
-def get_integrations(db=Depends(get_mongodb)):
-    health_resp = get_system_health(db)
+def get_integrations(
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.INTEGRATIONS_VIEW.value))
+):
+    health_resp = get_system_health(db=db, current_user=current_user)
     return ApiResponse(
         success=True,
         data=health_resp.data.integrations,

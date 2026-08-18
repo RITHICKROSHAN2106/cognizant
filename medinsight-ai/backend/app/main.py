@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from app.core.config import settings
 from app.database.mongo_seed import seed_mongodb
 from app.api import (
-    auth, patients, predictions, recommendations, analytics,
+    auth, admin, patients, predictions, recommendations, analytics,
     system, fhir, chat, reports, reference, vitals_ws,
     copilot, post_discharge
 )
@@ -93,6 +93,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Register API Routers
 app.include_router(auth.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(copilot.router, prefix="/api")
 app.include_router(post_discharge.router, prefix="/api")

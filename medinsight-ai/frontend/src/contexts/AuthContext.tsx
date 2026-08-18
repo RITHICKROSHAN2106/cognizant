@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, AuthState } from '../types/clinical';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { User, AuthState, UserRole } from '../types/clinical';
 import { authService } from '../services/authService';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (...permissions: string[]) => boolean;
+  hasRole: (...roles: (UserRole | string)[]) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,35 +18,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(() => authService.getStoredToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        authService.logout();
+        setUser(null);
+        setToken(null);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = authService.getStoredToken();
       if (storedToken) {
-        try {
-          const currentUser = await authService.getCurrentUser();
-          setUser(currentUser);
-        } catch (e) {
-          console.warn('Session verification failed, using stored local session');
-        }
+        await refreshUser();
       } else {
-        // Provide default logged-in session for clinical demo experience
-        const defaultUser: User = {
-          id: 1,
-          email: 'sarah.mitchell@medinsight.hospital',
-          username: 'dr.sarah',
-          full_name: 'Dr. Sarah Mitchell',
-          role: 'physician',
-          department: 'Internal Medicine',
-          is_active: true,
-          created_at: new Date().toISOString()
-        };
-        setUser(defaultUser);
+        setUser(null);
       }
       setIsLoading(false);
     };
 
     initAuth();
-  }, []);
+  }, [refreshUser]);
 
   const login = async (username: string, password: string) => {
     setIsLoading(true);
@@ -55,11 +56,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
     setToken(null);
   };
+
+  const hasPermission = useCallback((permission: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'administrator' || user.role === 'super_admin') return true;
+    if (!user.permissions) return false;
+    return user.permissions.includes(permission);
+  }, [user]);
+
+  const hasAnyPermission = useCallback((...permissions: string[]): boolean => {
+    if (!user) return false;
+    if (user.role === 'administrator' || user.role === 'super_admin') return true;
+    if (!user.permissions) return false;
+    return permissions.some(p => user.permissions?.includes(p));
+  }, [user]);
+
+  const hasRole = useCallback((...roles: (UserRole | string)[]): boolean => {
+    if (!user) return false;
+    const normalizedUserRole = user.role.toLowerCase().trim();
+    if (normalizedUserRole === 'administrator' || normalizedUserRole === 'super_admin') return true;
+    return roles.some(r => r.toLowerCase().trim() === normalizedUserRole);
+  }, [user]);
 
   return (
     <AuthContext.Provider
@@ -70,6 +92,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         logout,
+        hasPermission,
+        hasAnyPermission,
+        hasRole,
+        refreshUser,
       }}
     >
       {children}

@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.responses import StreamingResponse
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import ApiResponse, ReportSummaryResponse
-from app.security.dependencies import get_current_user, CurrentUser, log_audit_event
+from app.security.dependencies import (
+    get_current_user, CurrentUser, require_permission, log_audit_event
+)
+from app.security.rbac import PermissionEnum
 from app.services.report_service import report_service
 
 router = APIRouter(prefix="/patients", tags=["Patient Reports"])
@@ -23,7 +26,7 @@ def make_clean_report_filename(mrn: str, report_type: str, ext: str) -> str:
 def get_patient_report_data(
     patient_id: int,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REPORTS_VIEW.value))
 ):
     """Retrieve full aggregated clinical report dataset for a patient."""
     patient = db["patients"].find_one({"id": patient_id})
@@ -65,7 +68,7 @@ def export_patient_report_pdf(
     patient_id: int,
     report_type: str = "discharge",
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REPORTS_EXPORT.value))
 ):
     """Generate and stream high-quality clinical summary PDF report with meaningful filename."""
     patient = db["patients"].find_one({"id": patient_id})
@@ -115,7 +118,7 @@ def export_patient_report_csv(
     report_type: str = "discharge",
     encounter_id: Optional[str] = None,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REPORTS_EXPORT.value))
 ):
     """Generate and stream structured clinical summary CSV report with meaningful filename."""
     patient = db["patients"].find_one({"id": patient_id})
@@ -171,7 +174,7 @@ def export_cohort_csv(
     readmission_status: str = None,
     limit: int = 10000,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REPORTS_EXPORT.value))
 ):
     """
     Exports full patient census and readmission risk details as structured CSV.
@@ -208,7 +211,7 @@ def export_cohort_pdf(
     risk_level: str = None,
     limit: int = 150,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.REPORTS_EXPORT.value))
 ):
     """
     Generates and streams formatted multi-page PDF master registry with executive KPIs and patient risk details.

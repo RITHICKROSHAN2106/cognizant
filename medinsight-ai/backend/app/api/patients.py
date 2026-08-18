@@ -12,7 +12,11 @@ from app.schemas.schemas import (
     DischargePlanSchema, DischargePlanUpdate, RecommendationSchema,
     ExplanationResult, SimulationInput, SimulationResult, ApiResponse
 )
-from app.security.dependencies import get_current_user, require_roles, CurrentUser, log_audit_event
+from app.security.dependencies import (
+    get_current_user, require_roles, require_permission, require_any_permission,
+    CurrentUser, log_audit_event
+)
+from app.security.rbac import PermissionEnum
 from app.services.prediction_service import prediction_service
 from app.services.explainability_service import explainability_service
 from app.services.recommendation_service import recommendation_service
@@ -504,7 +508,7 @@ def get_patient(
 def create_patient(
     patient_in: PatientCreate,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.PATIENT_CREATE.value))
 ):
     """Registers a new patient and persists records across MongoDB collections."""
     from app.services.dataset_service import dataset_service
@@ -948,7 +952,7 @@ async def record_vital(
     vital_data: Dict[str, Any],
     encounter_id: Optional[str] = "1",
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.VITALS_CREATE.value))
 ):
     """Allows clinical staff to record a verified vital observation with validation and live broadcasting."""
     obs_type = vital_data.get("observation_type", "heart_rate")
@@ -958,9 +962,9 @@ async def record_vital(
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
 
-    all_obs = list(db["observations"].find())
-    max_id = max([o.get("id", 0) for o in all_obs], default=0)
-    new_obs_id = max_id + 1
+    last_obs = db["observations"].find_one(sort=[("id", -1)])
+    max_id = last_obs.get("id", 0) if last_obs else 0
+    new_obs_id = int(max_id) + 1
 
     now = datetime.datetime.utcnow()
     doc = {
@@ -979,12 +983,13 @@ async def record_vital(
         "received_at": now.isoformat()
     }
     db["observations"].insert_one(doc)
+    doc.pop("_id", None)
 
     # Broadcast via WebSocket to connected clinician displays
     try:
         await vitals_ws_manager.broadcast_observation(patient_id, encounter_id, doc)
     except Exception as e:
-        logger.warning(f"WebSocket broadcast error: {e}")
+        pass
 
     log_audit_event(
         db=db,

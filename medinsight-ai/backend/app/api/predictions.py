@@ -8,7 +8,10 @@ from app.schemas.schemas import (
 )
 from app.services.prediction_service import prediction_service
 from app.services.explainability_service import explainability_service
-from app.security.dependencies import get_current_user, log_audit_event, CurrentUser
+from app.security.dependencies import (
+    get_current_user, require_permission, log_audit_event, CurrentUser
+)
+from app.security.rbac import PermissionEnum
 
 router = APIRouter(tags=["ML Predictions & Explainability"])
 
@@ -17,7 +20,7 @@ router = APIRouter(tags=["ML Predictions & Explainability"])
 def predict_encounter_readmission(
     encounter_id: int,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.PREDICTION_RUN.value))
 ):
     """
     Scores a real inpatient encounter through the calibrated LightGBM + XGBoost ensemble.
@@ -59,7 +62,7 @@ def predict_encounter_readmission(
 def predict_readmission_payload(
     input_data: PredictionInput,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.PREDICTION_RUN.value))
 ):
     try:
         result = prediction_service.predict(input_data, db=db)
@@ -108,7 +111,7 @@ def get_patient_prediction_history(
 def get_prediction_explanation(
     prediction_id: int,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.PREDICTION_EXPLAIN.value))
 ):
     """Returns real SHAP TreeExplainer feature importance factors influencing the prediction."""
     try:
@@ -186,7 +189,7 @@ def simulate_risk(
     patient_id: int,
     simulation: SimulationInput,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.PREDICTION_RUN.value))
 ):
     try:
         result = explainability_service.simulate_scenario(patient_id, simulation, db=db)

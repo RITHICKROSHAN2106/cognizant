@@ -19,28 +19,71 @@ class ApiResponse(BaseModel, Generic[DataT]):
     error: Optional[ApiError] = None
 
 
-# --- Authentication Schemas ---
+# --- Authentication & Workforce Security Schemas ---
 class UserLogin(BaseModel):
     username: str
     password: str
 
 
 class UserBase(BaseModel):
+    staff_id: Optional[str] = "DOC-00000"
     email: str
     username: str
     full_name: str
-    role: str  # physician, nurse, care_coordinator, administrator
-    department: Optional[str] = None
+    role: str  # physician, nurse, care_coordinator, dietician, rehab_specialist, administrator
+    department: Optional[str] = "Clinical Services"
+    facility: Optional[str] = "MedInsight Central Hospital"
+    permissions: List[str] = []
     is_active: bool = True
 
 
 class UserCreate(UserBase):
     password: str
+    must_change_password: bool = False
+
+
+class StaffUserCreate(BaseModel):
+    staff_id: str
+    first_name: str
+    last_name: str
+    email: str
+    username: str
+    role: str
+    department: str = "Internal Medicine"
+    facility: str = "MedInsight Central Hospital"
+    temporary_password: str
+    must_change_password: bool = True
+    permissions: List[str] = []
+
+
+class StaffUserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    department: Optional[str] = None
+    facility: Optional[str] = None
+    is_active: Optional[bool] = None
+    permissions: Optional[List[str]] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class AdminPasswordReset(BaseModel):
+    temporary_password: str
+    must_change_password: bool = True
 
 
 class UserResponse(UserBase):
     id: int
-    created_at: Optional[datetime.datetime] = None
+    created_at: Optional[Union[datetime.datetime, str]] = None
+    last_login_at: Optional[Union[datetime.datetime, str]] = None
+    failed_login_attempts: int = 0
+    locked_until: Optional[Union[datetime.datetime, str]] = None
+    must_change_password: bool = False
 
     class Config:
         from_attributes = True
@@ -50,7 +93,41 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    session_id: Optional[str] = None
     user: UserResponse
+
+
+class AuditLogEntry(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[int] = None
+    staff_id: Optional[str] = None
+    username: str
+    action: str
+    resource: str
+    patient_id: Optional[int] = None
+    encounter_id: Optional[Union[str, int]] = None
+    details: Optional[Dict[str, Any]] = None
+    ip_address: Optional[str] = "127.0.0.1"
+    timestamp: str
+
+
+class SecurityStatusResponse(BaseModel):
+    total_staff: int
+    active_staff: int
+    deactivated_staff: int
+    locked_accounts: int
+    active_sessions: int
+    recent_events_count: int
+    recent_events: List[AuditLogEntry]
+
+
+class RolePermissionMatrix(BaseModel):
+    role: str
+    display_name: str
+    description: str
+    category: str
+    permissions: List[str]
+    staff_count: int = 0
 
 
 # --- Patient Schemas ---

@@ -5,7 +5,10 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import ApiResponse
-from app.security.dependencies import get_current_user, CurrentUser, log_audit_event
+from app.security.dependencies import (
+    get_current_user, CurrentUser, require_permission, log_audit_event
+)
+from app.security.rbac import PermissionEnum
 from app.services.clinical_context_builder import ClinicalContextBuilder
 from app.services.llm_service import llm_service
 from app.core.config import settings
@@ -46,7 +49,7 @@ class CopilotChatResponse(BaseModel):
 def copilot_chat(
     req: CopilotChatRequest,
     db=Depends(get_mongodb),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.COPILOT_QUERY.value))
 ):
     """
     Secure Context-Aware Clinical AI Copilot Endpoint:
