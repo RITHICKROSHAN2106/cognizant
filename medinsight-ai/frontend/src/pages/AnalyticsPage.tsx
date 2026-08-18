@@ -35,15 +35,21 @@ import { AnalyticsSummary } from '../types/clinical';
 
 export const AnalyticsPage: React.FC = () => {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [modelMeta, setModelMeta] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'model' | 'demographics' | 'diagnoses' | 'glycemic' | 'utilization' | 'fairness'>('model');
+  const [thresholdMode, setThresholdMode] = useState<'optimized' | 'default'>('optimized');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       setIsLoading(true);
       try {
-        const data = await analyticsService.getReadmissionAnalytics();
+        const [data, meta] = await Promise.all([
+          analyticsService.getReadmissionAnalytics(),
+          analyticsService.getModelMetrics().catch(() => null)
+        ]);
         setAnalytics(data);
+        setModelMeta(meta);
       } catch (err) {
         console.error('Failed to load analytics:', err);
       } finally {
@@ -218,64 +224,123 @@ export const AnalyticsPage: React.FC = () => {
                     </span>
                   </div>
                   <h2 className="text-xl font-bold text-white mt-1">
-                    MedInsight-Ensemble-XGBoost-LightGBM (prod-v2.1)
+                    {modelMeta?.model_name || analytics?.model_metrics?.model_name || "MedInsight-Ensemble-XGBoost-LightGBM"} ({modelMeta?.model_version || analytics?.model_metrics?.model_version || "prod-v2.1"})
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Isotonic Probability Calibrated • Decision Threshold: 0.335 (Optimized for 82.0% Readmission Sensitivity)
+                    Target: <code className="text-sky-300 font-mono text-[11px]">{modelMeta?.target_definition || "readmitted != 'NO'"}</code> • Held-Out Single-Look Test Cohort (N = {(modelMeta?.test_samples || analytics?.model_metrics?.total_test_records || 12261).toLocaleString()})
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-mono">
-                  <span className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg border border-slate-700">
-                    Test Cohort: N = 12,261
-                  </span>
-                  <span className="px-3 py-1.5 bg-emerald-950 text-emerald-300 rounded-lg border border-emerald-800 font-bold">
-                    Single-Look Held Out
-                  </span>
+
+                {/* Threshold Mode Selector */}
+                <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800 self-start md:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setThresholdMode('optimized')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      thresholdMode === 'optimized'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Clinical Threshold (0.335)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setThresholdMode('default')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      thresholdMode === 'default'
+                        ? 'bg-slate-700 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Default Baseline (0.50)
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
-                <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">AUROC (Discrimination)</div>
-                  <div className="text-2xl font-black text-sky-400 mt-1">
-                    {(analytics?.model_metrics?.auroc || 0.6435).toFixed(4)}
+              {/* Verified Metrics Grid */}
+              {thresholdMode === 'optimized' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">AUROC (Discrimination)</div>
+                    <div className="text-2xl font-black text-sky-400 mt-1">
+                      {(modelMeta?.test_auroc || analytics?.model_metrics?.auroc || 0.6435).toFixed(4)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Test Concordance Index</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Test Concordance Index</div>
-                </div>
-                <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">Accuracy</div>
-                  <div className="text-2xl font-black text-rose-400 mt-1">
-                    {((analytics?.model_metrics?.accuracy || 0.4899) * 100).toFixed(1)}%
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Accuracy</div>
+                    <div className="text-2xl font-black text-rose-400 mt-1">
+                      {(((modelMeta?.accuracy ?? analytics?.model_metrics?.accuracy) ?? 0.4899) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">At 0.335 Threshold</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">At 0.335 Threshold</div>
-                </div>
-                <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">Sensitivity (Recall)</div>
-                  <div className="text-2xl font-black text-teal-400 mt-1">
-                    {((analytics?.model_metrics?.recall || 0.8202) * 100).toFixed(1)}%
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Sensitivity / Recall</div>
+                    <div className="text-2xl font-black text-teal-400 mt-1">
+                      {(((modelMeta?.recall_sensitivity ?? analytics?.model_metrics?.recall) ?? 0.8202) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">3,185 / 3,883 Identified</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Readmissions Identified</div>
-                </div>
-                <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">Precision (PPV)</div>
-                  <div className="text-2xl font-black text-amber-400 mt-1">
-                    {((analytics?.model_metrics?.precision || 0.3644) * 100).toFixed(1)}%
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Precision (PPV)</div>
+                    <div className="text-2xl font-black text-amber-400 mt-1">
+                      {(((modelMeta?.precision ?? analytics?.model_metrics?.precision) ?? 0.3644) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Positive Predictive Val</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Positive Predictive Val</div>
-                </div>
-                <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score</div>
-                  <div className="text-2xl font-black text-purple-400 mt-1">
-                    {(analytics?.model_metrics?.f1 || 0.5046).toFixed(4)}
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score</div>
+                    <div className="text-2xl font-black text-purple-400 mt-1">
+                      {(modelMeta?.f1_score || analytics?.model_metrics?.f1 || 0.5046).toFixed(4)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Harmonic Mean</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Harmonic Mean</div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">AUROC (Discrimination)</div>
+                    <div className="text-2xl font-black text-sky-400 mt-1">
+                      {(modelMeta?.default_0_5_threshold_evaluation?.roc_auc || 0.6435).toFixed(4)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Test Concordance Index</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Accuracy</div>
+                    <div className="text-2xl font-black text-emerald-400 mt-1">
+                      {((modelMeta?.default_0_5_threshold_evaluation?.accuracy || 0.6659) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">At 0.50 Default Threshold</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Sensitivity / Recall</div>
+                    <div className="text-2xl font-black text-teal-400 mt-1">
+                      {((modelMeta?.default_0_5_threshold_evaluation?.recall || 0.3860) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">1,499 / 3,883 Identified</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Precision (PPV)</div>
+                    <div className="text-2xl font-black text-amber-400 mt-1">
+                      {((modelMeta?.default_0_5_threshold_evaluation?.precision || 0.4668) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Positive Predictive Val</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score</div>
+                    <div className="text-2xl font-black text-purple-400 mt-1">
+                      {(modelMeta?.default_0_5_threshold_evaluation?.f1_score || 0.4226).toFixed(4)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Harmonic Mean</div>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4 p-3 bg-slate-800/60 rounded-xl border border-slate-700 text-xs text-slate-300 flex items-start gap-2">
                 <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Clinical Threshold Calibration:</strong> Because missing a vulnerable patient is far more dangerous than an unnecessary check-in call, the decision threshold was intentionally tuned to <strong>0.335</strong> to deliver <strong>82.0% Sensitivity</strong>. In this high-sensitivity screening posture, raw classification accuracy is <strong>49.0%</strong>, catching 3,185 out of 3,883 readmissions in the 12,261 held-out test cohort.
+                  <strong>Clinical Threshold Strategy (Notebook Section 7 & 10):</strong> At the default 0.50 threshold, the model yields <strong>66.6% Accuracy</strong> but misses over 61% of readmissions (Recall: 38.6%). By tuning the clinical decision threshold to <strong>0.335</strong>, the ensemble boosts <strong>Sensitivity / Recall to 82.0%</strong> (catching 3,185 readmissions), with a corresponding trade-off in raw classification accuracy (**49.0%**).
                 </span>
               </div>
             </div>

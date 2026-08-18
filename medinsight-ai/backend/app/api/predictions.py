@@ -196,3 +196,31 @@ def simulate_risk(
         return ApiResponse(success=True, data=result, message="Risk simulation computed")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/model/metrics", response_model=ApiResponse[Dict[str, Any]])
+def get_model_metrics(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    Returns the verified held-out test evaluation metadata directly from the trained model artifacts.
+    """
+    import os, json
+    from app.core.config import settings
+    metadata_path = os.path.join(settings.ML_MODEL_PATH, "metadata.json")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+            return ApiResponse(
+                success=True,
+                data=meta,
+                message="Trained model held-out test evaluation metrics retrieved from metadata"
+            )
+    
+    from app.services.dataset_service import dataset_service
+    pop = dataset_service.get_population_analytics()
+    return ApiResponse(
+        success=True,
+        data=pop.get("model_metrics", {}),
+        message="Model evaluation metrics retrieved"
+    )

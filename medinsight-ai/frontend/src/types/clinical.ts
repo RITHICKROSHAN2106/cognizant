@@ -443,6 +443,8 @@ export interface AnalyticsSummary {
     model_version: string;
     evaluated_cohort_size?: number;
     total_training_records?: number;
+    total_validation_records?: number;
+    total_test_records?: number;
     unique_training_patients?: number;
     features_count?: number;
     calibration_status: string;

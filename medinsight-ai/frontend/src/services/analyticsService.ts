@@ -6,6 +6,10 @@ export const analyticsService = {
     const response = await apiClient.get<ApiResponse<AnalyticsSummary>>('/analytics/readmissions');
     return response.data.data;
   },
+  getModelMetrics: async (): Promise<any> => {
+    const response = await apiClient.get<ApiResponse<any>>('/model/metrics');
+    return response.data.data;
+  }
 };
 
 export const systemService = {
