@@ -49,7 +49,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]
 
     class Config:
-        env_file = ".env"
+        env_file = (".env", "../.env", "../../.env")
         extra = "ignore"
 
 
