@@ -22,6 +22,8 @@ class PostDischargeService:
         if db is not None:
             plan = db["post_discharge_care_plans"].find_one({"patient_id": patient_id})
             if plan:
+                if "_id" in plan:
+                    del plan["_id"]
                 return plan
 
         # 2. Derive from dataset & clinical defaults

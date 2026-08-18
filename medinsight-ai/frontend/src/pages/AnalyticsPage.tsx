@@ -105,7 +105,7 @@ export const AnalyticsPage: React.FC = () => {
         <div className="clinical-card p-3.5 bg-white border border-slate-200 rounded-xl">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Model AUROC</div>
           <div className="text-xl font-black text-sky-600 mt-1">
-            {(analytics?.model_metrics?.auroc || 0.6423).toFixed(3)}
+            {(analytics?.model_metrics?.auroc || 0.6435).toFixed(3)}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">Ensemble Discrimination</div>
         </div>
@@ -214,22 +214,22 @@ export const AnalyticsPage: React.FC = () => {
                       <BrainCircuit className="w-4 h-4" />
                     </span>
                     <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
-                      Production Ensemble Model Performance
+                      Trained Notebook Ensemble Model Performance (Held-Out Test Split)
                     </span>
                   </div>
                   <h2 className="text-xl font-bold text-white mt-1">
                     MedInsight-Ensemble-XGBoost-LightGBM (prod-v2.1)
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Isotonic Probability Calibrated • Decision Threshold: 0.130 (Optimized for 82.5% Recall)
+                    Isotonic Probability Calibrated • Decision Threshold: 0.335 (Optimized for 82.0% Readmission Sensitivity)
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-mono">
                   <span className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg border border-slate-700">
-                    Training: N = 101,766
+                    Test Cohort: N = 12,261
                   </span>
                   <span className="px-3 py-1.5 bg-emerald-950 text-emerald-300 rounded-lg border border-emerald-800 font-bold">
-                    Calibrated: HL p=0.42
+                    Single-Look Held Out
                   </span>
                 </div>
               </div>
@@ -238,38 +238,45 @@ export const AnalyticsPage: React.FC = () => {
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">AUROC (Discrimination)</div>
                   <div className="text-2xl font-black text-sky-400 mt-1">
-                    {(analytics?.model_metrics?.auroc || 0.6423).toFixed(4)}
+                    {(analytics?.model_metrics?.auroc || 0.6435).toFixed(4)}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Test Concordance Index</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Accuracy</div>
-                  <div className="text-2xl font-black text-emerald-400 mt-1">
-                    {((analytics?.model_metrics?.accuracy || 0.7760) * 100).toFixed(1)}%
+                  <div className="text-2xl font-black text-rose-400 mt-1">
+                    {((analytics?.model_metrics?.accuracy || 0.4899) * 100).toFixed(1)}%
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Evaluation Cohort</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">At 0.335 Threshold</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Sensitivity (Recall)</div>
                   <div className="text-2xl font-black text-teal-400 mt-1">
-                    {((analytics?.model_metrics?.recall || 0.4958) * 100).toFixed(1)}%
+                    {((analytics?.model_metrics?.recall || 0.8202) * 100).toFixed(1)}%
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Readmissions Identified</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">Precision (PPV)</div>
                   <div className="text-2xl font-black text-amber-400 mt-1">
-                    {((analytics?.model_metrics?.precision || 0.2623) * 100).toFixed(1)}%
+                    {((analytics?.model_metrics?.precision || 0.3644) * 100).toFixed(1)}%
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">True High-Risk Alerts</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Positive Predictive Val</div>
                 </div>
                 <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700">
                   <div className="text-[10px] font-bold text-slate-400 uppercase">F1-Score</div>
                   <div className="text-2xl font-black text-purple-400 mt-1">
-                    {(analytics?.model_metrics?.f1 || 0.3431).toFixed(4)}
+                    {(analytics?.model_metrics?.f1 || 0.5046).toFixed(4)}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Harmonic Mean</div>
                 </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-slate-800/60 rounded-xl border border-slate-700 text-xs text-slate-300 flex items-start gap-2">
+                <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Clinical Threshold Calibration:</strong> Because missing a vulnerable patient is far more dangerous than an unnecessary check-in call, the decision threshold was intentionally tuned to <strong>0.335</strong> to deliver <strong>82.0% Sensitivity</strong>. In this high-sensitivity screening posture, raw classification accuracy is <strong>49.0%</strong>, catching 3,185 out of 3,883 readmissions in the 12,261 held-out test cohort.
+                </span>
               </div>
             </div>
 

@@ -733,19 +733,23 @@ class EnterpriseDatasetService:
             "model_metrics": {
                 "model_name": "MedInsight-Ensemble-XGBoost-LightGBM",
                 "model_version": "prod-v2.1",
-                "auroc": 0.6423,
-                "accuracy": 0.7760,
-                "precision": 0.2623,
-                "recall": 0.4958,
-                "sensitivity": 0.4958,
-                "f1": 0.3431,
-                "brier_score": 0.098,
-                "decision_threshold": 0.130,
-                "total_training_records": total_encs,
-                "unique_training_patients": total_patients,
-                "features_count": 97,
+                "auroc": 0.6435,
+                "pr_auc": 0.4464,
+                "accuracy": 0.4899,
+                "precision": 0.3644,
+                "recall": 0.8202,
+                "sensitivity": 0.8202,
+                "specificity": 0.3368,
+                "f1": 0.5046,
+                "brier_score": 0.2158,
+                "decision_threshold": 0.335,
+                "total_training_records": 72361,
+                "total_validation_records": 14721,
+                "total_test_records": 12261,
+                "unique_training_patients": 50062,
+                "features_count": 67,
                 "calibration_status": "Isotonic Calibrated",
-                "evaluation_source": "diabetes_readmission_notebook_final"
+                "evaluation_source": "diabetes_readmission_notebook_final_model (Held-out Test Split)"
             }
         }
         return self.cached_analytics
