@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # GenAI / Google Gemini
     GENAI_PROVIDER: str = "gemini"
     GENAI_API_KEY: Optional[str] = None
-    GENAI_MODEL: str = "gemini-1.5-flash"
+    GENAI_MODEL: str = "gemini-3.1-flash-lite"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

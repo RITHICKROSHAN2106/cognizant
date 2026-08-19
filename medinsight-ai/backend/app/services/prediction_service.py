@@ -15,15 +15,17 @@ class PredictionService:
         Scores a real hospital encounter using the production trained model pipeline.
         Saves the resulting prediction to the database.
         """
-        enc = db["encounters"].find_one({"id": encounter_id})
-        if not enc:
-            # Fallback search by encounter_id string or raw id
-            enc = db["encounters"].find_one({"encounter_id": encounter_id})
+        enc = db["encounters"].find_one({"$or": [
+            {"id": encounter_id},
+            {"encounter_id": encounter_id},
+            {"encounter_id": f"ENC-{encounter_id}"},
+            {"source_encounter_id": encounter_id}
+        ]})
         if not enc:
             raise ValueError(f"Encounter {encounter_id} not found in database.")
 
-        patient_id = enc.get("patient_id", 1)
-        patient = db["patients"].find_one({"id": patient_id})
+        patient_id = enc.get("patient_id") or enc.get("source_patient_id")
+        patient = db["patients"].find_one({"$or": [{"id": patient_id}, {"source_patient_id": patient_id}, {"patient_nbr": patient_id}]})
 
         # Load production model
         model = get_model()

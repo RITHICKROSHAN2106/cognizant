@@ -107,10 +107,8 @@ export const LoginPage: React.FC = () => {
   const handleSelectStaffRole = (staff: StaffQuickSelect) => {
     setUsername(staff.username);
     setSelectedStaffUser(staff.username);
-    // Clear password immediately on account selection change
     setPassword('');
     setError(null);
-    // Automatically focus password input field for manual password entry
     setTimeout(() => {
       passwordInputRef.current?.focus();
     }, 50);
@@ -244,8 +242,8 @@ export const LoginPage: React.FC = () => {
                       <div className="font-bold text-xs text-white group-hover:text-sky-300 transition-colors truncate">
                         {staff.name}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center justify-between">
-                        <span>User: <strong className="text-slate-300 font-semibold">{staff.username}</strong></span>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        User: <strong className="text-slate-300 font-semibold">{staff.username}</strong>
                       </div>
                     </button>
                   );

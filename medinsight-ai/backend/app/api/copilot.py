@@ -102,6 +102,7 @@ def copilot_chat(
             patient_id=patient_id,
             encounter_id=req.encounter_id,
             context_type=context_type,
+            user_message=req.message,
             user_role=current_user.role,
             db=db
         )
@@ -119,6 +120,7 @@ def copilot_chat(
             patient_id=patient_id,
             user_message=req.message,
             history=history_dicts,
+            prompt=prompt,
             db=db
         )
 

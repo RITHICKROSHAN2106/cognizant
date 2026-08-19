@@ -112,9 +112,11 @@ def build_model_feature_dict(
     diag_1_category = map_icd9_to_category(raw_diag)
 
     # 2. Medical Specialty Grouping
-    raw_specialty = str(combined.get('medical_specialty') or 'Other/Missing').strip()
+    raw_specialty = str(combined.get('medical_specialty') or '?').strip()
     if raw_specialty in TOP_SPECIALTIES:
         medical_specialty_grp = raw_specialty
+    elif raw_specialty in ('?', 'Missing', 'None', '', 'null'):
+        medical_specialty_grp = '?'
     else:
         medical_specialty_grp = 'Other/Missing'
 
@@ -139,12 +141,12 @@ def build_model_feature_dict(
     num_diag = float(combined.get('number_diagnoses') or 5)
 
     # 5. Categoricals
-    race = str(combined.get('race') or 'Caucasian').strip()
-    if race in ('?', ''):
-        race = 'Missing'
+    race = str(combined.get('race') or '?').strip()
+    if race in ('', 'None', 'null', 'Missing'):
+        race = '?'
 
     gender = str(combined.get('gender') or combined.get('sex') or 'Female').strip()
-    if gender in ('?', 'Unknown/Invalid', ''):
+    if gender in ('?', 'Unknown/Invalid', '', 'None', 'null'):
         gender = 'Female'
 
     age = str(combined.get('age_group') or combined.get('age') or '[60-70)').strip()

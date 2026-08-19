@@ -38,11 +38,26 @@ def chat_with_patient_ai(
     )
 
     try:
+        from app.services.clinical_context_builder import ClinicalContextBuilder
+        context = ClinicalContextBuilder.build_context(
+            patient_id=patient_id,
+            user_message=request.message,
+            user_role=current_user.role,
+            db=db
+        )
+        prompt = ClinicalContextBuilder.construct_secure_prompt(
+            context=context,
+            user_message=request.message,
+            history=[{"role": h.role, "content": h.content} for h in (request.history or [])],
+            user_role=current_user.role
+        )
+
         history_dicts = [{"role": h.role, "content": h.content} for h in (request.history or [])]
         response_dict = llm_service.generate_chat_response(
             patient_id=patient_id,
             user_message=request.message,
             history=history_dicts,
+            prompt=prompt,
             db=db
         )
 

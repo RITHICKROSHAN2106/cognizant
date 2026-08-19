@@ -21,6 +21,12 @@ except ImportError:
     DuplicateKeyError = Exception
     ObjectId = str
 
+try:
+    import certifi
+    CA_FILE = certifi.where()
+except ImportError:
+    CA_FILE = None
+
 
 def serialize_doc(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Converts MongoDB BSON types (like ObjectId) to clean JSON serializable fields."""
@@ -391,7 +397,8 @@ class MongoDBManager:
                     minPoolSize=5,
                 )
                 # Atlas SRV connections need TLS; pymongo handles this automatically
-                # but we must NOT override tlsAllowInvalidCertificates for production
+                if CA_FILE and ("mongodb+srv" in mongo_uri or "tls=true" in mongo_uri.lower() or "ssl=true" in mongo_uri.lower()):
+                    connect_kwargs["tlsCAFile"] = CA_FILE
                 self.client = MongoClient(mongo_uri, **connect_kwargs)
                 # Perform real ping to confirm connectivity before accepting
                 self.client.admin.command("ping")

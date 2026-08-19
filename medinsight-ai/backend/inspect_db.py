@@ -53,8 +53,13 @@ def main():
     # 2. MongoDB connection
     try:
         from pymongo import MongoClient
+        import certifi
+        ca = certifi.where() if "mongodb+srv" in uri else None
         t0 = time.perf_counter()
-        client = MongoClient(uri, serverSelectionTimeoutMS=10000)
+        client_kwargs = {"serverSelectionTimeoutMS": 10000}
+        if ca:
+            client_kwargs["tlsCAFile"] = ca
+        client = MongoClient(uri, **client_kwargs)
         ping_result = client.admin.command("ping")
         latency_ms = round((time.perf_counter() - t0) * 1000, 1)
         ping_ok = int(ping_result.get("ok", 0)) == 1

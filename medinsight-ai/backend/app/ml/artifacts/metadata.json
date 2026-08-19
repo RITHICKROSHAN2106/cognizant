@@ -222,7 +222,7 @@
     "diabetesMed_No",
     "diabetesMed_Yes"
   ],
-  "decision_threshold": 0.13,
+  "decision_threshold": 0.335,
   "death_hospice_discharge_codes_excluded": [
     11,
     13,
