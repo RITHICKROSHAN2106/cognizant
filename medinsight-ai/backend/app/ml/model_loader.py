@@ -124,6 +124,10 @@ class TrainedEnsembleModel:
 
         return {
             "probability": round(calibrated_prob, 4),
+            "raw_xgb_prob": round(p_xgb, 4),
+            "raw_lgb_prob": round(p_lgb, 4),
+            "calibrated_xgb_prob": round(p_xgb_cal, 4),
+            "calibrated_lgb_prob": round(p_lgb_cal, 4),
             "decision_threshold": round(self.decision_threshold, 3),
             "predicted_class": predicted_class,
             "risk_level": risk_level,

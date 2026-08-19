@@ -3,7 +3,7 @@ import time
 import random
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import (
     PatientSummary, PatientDetail, PatientCreate, PatientUpdate,
@@ -1169,12 +1169,51 @@ def get_patient_procedures(patient_id: int, db=Depends(get_mongodb), current_use
 
 
 @router.get("/{patient_id}/notes", response_model=ApiResponse[List[ClinicalNoteSchema]])
-def get_patient_notes(patient_id: int, db=Depends(get_mongodb), current_user: CurrentUser = Depends(get_current_user)):
+def get_patient_notes(patient_id: Union[int, str], db=Depends(get_mongodb), current_user: CurrentUser = Depends(get_current_user)):
     from app.services.dataset_service import dataset_service
-    notes = list(db["clinical_notes"].find({"patient_id": patient_id}))
+    clean_id = int(str(patient_id).replace("PT-", "").replace("MRN-", ""))
+    notes = list(db["clinical_notes"].find({"$or": [{"patient_id": patient_id}, {"patient_id": clean_id}, {"patient_id": str(patient_id)}]}))
     if not notes:
-        notes = dataset_service.get_patient_notes(patient_id)
+        notes = dataset_service.get_patient_notes(clean_id)
     return ApiResponse(success=True, data=[ClinicalNoteSchema(**n) for n in notes])
+
+
+@router.post("/{patient_id}/notes", response_model=ApiResponse[ClinicalNoteSchema], status_code=status.HTTP_201_CREATED)
+def create_patient_note(
+    patient_id: Union[int, str],
+    note_in: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """Adds and persists a new clinical progress note in MongoDB clinical_notes collection."""
+    clean_id = int(str(patient_id).replace("PT-", "").replace("MRN-", ""))
+    now_iso = datetime.datetime.utcnow().isoformat()
+    note_id = int(time.time() % 10000000) + random.randint(100, 999)
+    
+    note_doc = {
+        "id": note_id,
+        "patient_id": clean_id,
+        "note_type": note_in.get("note_type", "Clinical Progress Note"),
+        "author": note_in.get("author", current_user.full_name),
+        "author_role": note_in.get("author_role", current_user.role),
+        "content": note_in.get("content", ""),
+        "created_at": now_iso
+    }
+    db["clinical_notes"].insert_one(note_doc)
+    
+    log_audit_event(
+        db=db,
+        user=current_user,
+        action="CLINICAL_NOTE_CREATED",
+        resource="clinical_notes",
+        patient_id=clean_id
+    )
+    
+    return ApiResponse(
+        success=True,
+        data=ClinicalNoteSchema(**note_doc),
+        message="Clinical note recorded successfully."
+    )
 
 
 @router.get("/{patient_id}/discharge-plan", response_model=ApiResponse[Optional[DischargePlanSchema]])

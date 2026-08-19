@@ -73,6 +73,7 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
   };
 
   useEffect(() => {
+    setSimulationResult(null);
     fetchPredictionAndExplanation();
   }, [patient.id]);
 
@@ -101,7 +102,19 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
     }
   };
 
-  const rawProbability = explanation?.prediction || predictionData?.probability || patient.risk_probability || 0.68;
+  const handleResetSimulation = () => {
+    setSimulationResult(null);
+    setSimulation({
+      follow_up_scheduled: true,
+      medication_reconciliation: true,
+      diabetes_education: true,
+      care_coordinator: true,
+      early_outpatient_review: false,
+      home_monitoring: true,
+    });
+  };
+
+  const rawProbability = explanation?.prediction ?? predictionData?.probability ?? patient.risk_probability ?? 0.05;
   const riskPercent = Math.round(rawProbability * 100);
   const riskTier = rawProbability >= 0.70 ? 'Critical' : rawProbability >= 0.45 ? 'High' : rawProbability >= 0.25 ? 'Moderate' : 'Low';
 
@@ -328,19 +341,32 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRunSimulation}
-            disabled={isSimulating}
-            className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1.5"
-          >
-            {isSimulating ? (
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-            ) : (
-              <Sliders className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            {simulationResult && (
+              <button
+                type="button"
+                onClick={handleResetSimulation}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition flex items-center gap-1.5 border border-slate-300"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reset Simulation</span>
+              </button>
             )}
-            <span>Simulate Risk Reduction</span>
-          </button>
+
+            <button
+              type="button"
+              onClick={handleRunSimulation}
+              disabled={isSimulating}
+              className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1.5"
+            >
+              {isSimulating ? (
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              ) : (
+                <Sliders className="w-4 h-4" />
+              )}
+              <span>Simulate Risk Reduction</span>
+            </button>
+          </div>
         </div>
 
         {/* Checkbox Interventions Grid */}
@@ -409,9 +435,9 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
         {/* Simulation Output Box */}
         {simulationResult ? (
           <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-6">
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-500">Baseline Risk</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500">Baseline Model Risk</div>
                 <div className="text-xl font-black text-rose-700">
                   {Math.round(simulationResult.baselineRisk * 100)}%
                 </div>
@@ -420,27 +446,31 @@ export const RiskAnalysisTab: React.FC<RiskAnalysisTabProps> = ({ patient }) => 
               <ArrowRight className="w-5 h-5 text-emerald-700" />
 
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-500">Projected Post-Intervention</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500">Scenario Estimate</div>
                 <div className="text-2xl font-black text-emerald-700">
                   {Math.round(simulationResult.scenarioRisk * 100)}%
                 </div>
               </div>
 
               <div className="px-3 py-1 bg-emerald-700 text-white rounded text-xs font-bold">
-                {Math.round(simulationResult.difference * 100)}% Absolute Risk Delta
+                {Math.round(simulationResult.difference * 100)} percentage points (pp)
               </div>
             </div>
 
-            <div className="text-[11px] text-slate-600 max-w-sm text-right">
-              {simulationResult.disclaimer}
+            <div className="text-[11px] text-slate-600 max-w-sm text-right space-y-1">
+              <div className="text-[10px] font-bold text-slate-500 uppercase">
+                Simulation Type: Rule-Based Scenario Estimate
+              </div>
+              <div>{simulationResult.disclaimer}</div>
             </div>
           </div>
         ) : (
           <div className="p-3 bg-slate-50 rounded text-center text-xs text-slate-500 border border-slate-200">
-            Click <strong>"Simulate Risk Reduction"</strong> to evaluate the projected impact of selected interventions.
+            Click <strong>"Simulate Risk Reduction"</strong> to evaluate the projected impact of selected interventions on this patient's baseline risk.
           </div>
         )}
       </div>
     </div>
   );
 };
+

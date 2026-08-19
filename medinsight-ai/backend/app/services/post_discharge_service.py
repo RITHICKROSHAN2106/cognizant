@@ -14,13 +14,24 @@ class PostDischargeService:
     """
 
     @classmethod
-    def get_post_discharge_plan(cls, patient_id: int, db = None) -> Dict[str, Any]:
+    def get_post_discharge_plan(cls, patient_id: Any, db = None) -> Dict[str, Any]:
         """
         Retrieves or generates a complete post-discharge continuity plan for a patient.
         """
+        num_id = None
+        str_id = str(patient_id)
+        try:
+            clean_str = str_id.replace("PT-", "").replace("MRN-", "").replace("ENC-", "")
+            num_id = int(clean_str)
+        except Exception:
+            pass
+
         # 1. Check MongoDB persistence first
         if db is not None:
-            plan = db["post_discharge_care_plans"].find_one({"patient_id": patient_id})
+            conds = [{"patient_id": patient_id}, {"patient_id": str_id}]
+            if num_id is not None:
+                conds.append({"patient_id": num_id})
+            plan = db["post_discharge_care_plans"].find_one({"$or": conds})
             if plan:
                 if "_id" in plan:
                     del plan["_id"]
@@ -29,16 +40,22 @@ class PostDischargeService:
         # 2. Derive from dataset & clinical defaults
         patient = None
         if db is not None:
-            patient = db["patients"].find_one({"id": patient_id})
+            p_conds = [{"id": patient_id}, {"id": str_id}, {"source_patient_id": str_id}, {"patient_nbr": str_id}]
+            if num_id is not None:
+                p_conds.extend([{"id": num_id}, {"source_patient_id": num_id}, {"patient_nbr": num_id}])
+            patient = db["patients"].find_one({"$or": p_conds})
+        if not patient and num_id is not None:
+            patient = dataset_service.get_patient_by_id(num_id)
         if not patient:
             patient = dataset_service.get_patient_by_id(patient_id)
         
         if not patient:
             raise ValueError(f"Patient with ID {patient_id} not found.")
 
-        pname = f"{patient.get('first_name', '')} {patient.get('last_name', '')}".strip()
-        mrn = patient.get("mrn", f"MRN-{patient_id}")
-        risk_p = patient.get("risk_probability", 0.65)
+        resolved_pid = num_id if num_id is not None else patient.get("id", 1)
+        pname = f"{patient.get('first_name', '')} {patient.get('last_name', '')}".strip() or f"Patient #{resolved_pid}"
+        mrn = patient.get("mrn", f"MRN-{resolved_pid}")
+        risk_p = float(patient.get("risk_probability", 0.65))
         risk_level = patient.get("risk_level", "High")
         
         # Calculate timeline dates
@@ -217,10 +234,10 @@ class PostDischargeService:
         # Build coverage & emergency support
         coverage = {
             "id": 1,
-            "patient_id": patient_id,
+            "patient_id": resolved_pid,
             "coverage_type": "Medicare Part A & B",
             "provider": "Centers for Medicare & Medicaid Services (CMS)",
-            "policy_or_member_id": f"MED-{patient_id:07d}",
+            "policy_or_member_id": f"MED-{resolved_pid}",
             "coverage_status": "Active",
             "valid_from": "2026-01-01",
             "valid_until": "2026-12-31",
@@ -237,7 +254,7 @@ class PostDischargeService:
         contacts = [
             {
                 "id": 1,
-                "patient_id": patient_id,
+                "patient_id": resolved_pid,
                 "date": w1_date,
                 "contact_type": "Phone Call",
                 "staff_name": "Emma Davis, RN",
@@ -251,11 +268,17 @@ class PostDischargeService:
         # Readmissions history
         readmissions = []
         if patient.get("readmitted_outcome") in ["<30", ">30"]:
+            enc_val = patient.get('encounter_id', 100000)
+            try:
+                enc_num = int(str(enc_val).replace("ENC-", ""))
+            except Exception:
+                enc_num = 100000
+
             readmissions.append({
                 "id": 1,
-                "patient_id": patient_id,
-                "previous_encounter_id": f"ENC-{patient.get('encounter_id', 100000)}",
-                "new_encounter_id": f"ENC-{patient.get('encounter_id', 100000) + 1200}",
+                "patient_id": resolved_pid,
+                "previous_encounter_id": f"ENC-{enc_num}",
+                "new_encounter_id": f"ENC-{enc_num + 1200}",
                 "previous_discharge_date": discharge_date,
                 "readmission_date": (today - datetime.timedelta(days=3)).isoformat(),
                 "days_since_discharge": 11 if patient.get("readmitted_outcome") == "<30" else 38,
@@ -267,10 +290,10 @@ class PostDischargeService:
 
         plan_doc = {
             "id": 1,
-            "patient_id": patient_id,
+            "patient_id": resolved_pid,
             "mrn": mrn,
             "patient_name": pname,
-            "discharge_encounter_id": f"ENC-{patient.get('encounter_id', patient_id)}",
+            "discharge_encounter_id": f"ENC-{patient.get('encounter_id', resolved_pid)}",
             "discharge_date": discharge_date,
             "care_start_date": discharge_date,
             "care_end_date": (today + datetime.timedelta(days=30)).isoformat(),
@@ -278,7 +301,7 @@ class PostDischargeService:
             "risk_level_at_discharge": risk_level,
             "discharge_risk_score": risk_p,
             "current_risk_level": "Moderate" if risk_p >= 0.70 else "Low",
-            "current_risk_score": max(0.20, risk_p - 0.15),
+            "current_risk_score": max(0.20, round(risk_p - 0.15, 3)),
             "assigned_physician": "Dr. Sarah Mitchell, MD",
             "care_coordinator": "Emma Davis, RN",
             "assigned_dietician": "Elena Rostova, RD, CDE",
@@ -299,7 +322,7 @@ class PostDischargeService:
         # Auto-persist in MongoDB if available
         if db is not None:
             db["post_discharge_care_plans"].update_one(
-                {"patient_id": patient_id},
+                {"patient_id": resolved_pid},
                 {"$set": plan_doc},
                 upsert=True
             )
@@ -496,6 +519,158 @@ class PostDischargeService:
             "message": f"Readmission encounter ENC-{new_enc_id} recorded successfully (Days between: {days_between}, 30d Window: {is_30_day})",
             "encounter": new_encounter,
             "readmission_event": readmission_event
+        }
+
+    @classmethod
+    def update_follow_up_visit(
+        cls,
+        patient_id: Any,
+        visit_id: int,
+        update_data: Dict[str, Any],
+        db = None
+    ) -> Dict[str, Any]:
+        """
+        Updates a specific follow-up visit status, completion date, clinician, notes,
+        or scheduled date, and persists the updated plan with recalculated completion metrics.
+        """
+        plan = cls.get_post_discharge_plan(patient_id, db=db)
+        visits = plan.get("follow_up_visits", [])
+        
+        target_visit = None
+        for v in visits:
+            if v.get("id") == visit_id:
+                target_visit = v
+                break
+        
+        if not target_visit:
+            raise ValueError(f"Follow-up visit with ID {visit_id} not found in patient care plan.")
+
+        # Apply updates
+        for key, val in update_data.items():
+            if val is not None:
+                target_visit[key] = val
+
+        # Handle completion state toggling
+        if update_data.get("status") == "Completed":
+            if not target_visit.get("completed_date"):
+                target_visit["completed_date"] = datetime.date.today().isoformat()
+        elif update_data.get("status") in ["Pending", "Scheduled", "Rescheduled", "Missed", "Cancelled"]:
+            # If user explicitly reopened or changed status away from Completed, clear completed_date if not forced
+            if "completed_date" not in update_data or update_data["completed_date"] is None:
+                target_visit["completed_date"] = None
+
+        # Recalculate completion metrics
+        total_visits = len(visits)
+        completed_visits = sum(1 for v in visits if v.get("status") == "Completed")
+        rate = int(round((completed_visits / max(1, total_visits)) * 100)) if total_visits > 0 else 0
+        plan["follow_up_completion_rate"] = rate
+        plan["updated_at"] = datetime.datetime.utcnow().isoformat()
+
+        # Persist to database
+        resolved_pid = plan.get("patient_id") or patient_id
+        if db is not None:
+            db["post_discharge_care_plans"].update_one(
+                {"patient_id": resolved_pid},
+                {"$set": plan},
+                upsert=True
+            )
+
+        return {
+            "visit": target_visit,
+            "completion_rate": rate,
+            "plan": plan
+        }
+
+    @classmethod
+    def add_follow_up_visit(
+        cls,
+        patient_id: Any,
+        visit_data: Dict[str, Any],
+        db = None
+    ) -> Dict[str, Any]:
+        """
+        Adds a new follow-up visit to the patient's care plan.
+        """
+        plan = cls.get_post_discharge_plan(patient_id, db=db)
+        visits = plan.get("follow_up_visits", [])
+
+        next_id = max([v.get("id", 0) for v in visits], default=0) + 1
+        today = datetime.date.today()
+
+        new_visit = {
+            "id": next_id,
+            "patient_id": patient_id,
+            "week_number": visit_data.get("week_number", len(visits) + 1),
+            "visit_type": visit_data.get("visit_type", "Specialty Follow-Up Review"),
+            "scheduled_date": visit_data.get("scheduled_date", (today + datetime.timedelta(days=7)).isoformat()),
+            "completed_date": visit_data.get("completed_date"),
+            "assigned_clinician": visit_data.get("assigned_clinician", "Dr. Sarah Mitchell, MD"),
+            "status": visit_data.get("status", "Scheduled"),
+            "notes": visit_data.get("notes", ""),
+            "outcome": visit_data.get("outcome")
+        }
+
+        if new_visit["status"] == "Completed" and not new_visit["completed_date"]:
+            new_visit["completed_date"] = today.isoformat()
+
+        visits.append(new_visit)
+        plan["follow_up_visits"] = visits
+
+        # Recalculate rate
+        completed_visits = sum(1 for v in visits if v.get("status") == "Completed")
+        plan["follow_up_completion_rate"] = int(round((completed_visits / max(1, len(visits))) * 100))
+        plan["updated_at"] = datetime.datetime.utcnow().isoformat()
+
+        resolved_pid = plan.get("patient_id") or patient_id
+        if db is not None:
+            db["post_discharge_care_plans"].update_one(
+                {"patient_id": resolved_pid},
+                {"$set": plan},
+                upsert=True
+            )
+
+        return {
+            "visit": new_visit,
+            "completion_rate": plan["follow_up_completion_rate"],
+            "plan": plan
+        }
+
+    @classmethod
+    def delete_follow_up_visit(
+        cls,
+        patient_id: Any,
+        visit_id: int,
+        db = None
+    ) -> Dict[str, Any]:
+        """
+        Removes / cancels a follow-up visit from the patient's schedule.
+        """
+        plan = cls.get_post_discharge_plan(patient_id, db=db)
+        visits = plan.get("follow_up_visits", [])
+        
+        initial_len = len(visits)
+        visits = [v for v in visits if v.get("id") != visit_id]
+        
+        if len(visits) == initial_len:
+            raise ValueError(f"Follow-up visit {visit_id} not found.")
+
+        plan["follow_up_visits"] = visits
+        completed_visits = sum(1 for v in visits if v.get("status") == "Completed")
+        plan["follow_up_completion_rate"] = int(round((completed_visits / max(1, len(visits))) * 100)) if visits else 0
+        plan["updated_at"] = datetime.datetime.utcnow().isoformat()
+
+        resolved_pid = plan.get("patient_id") or patient_id
+        if db is not None:
+            db["post_discharge_care_plans"].update_one(
+                {"patient_id": resolved_pid},
+                {"$set": plan},
+                upsert=True
+            )
+
+        return {
+            "deleted_visit_id": visit_id,
+            "completion_rate": plan["follow_up_completion_rate"],
+            "plan": plan
         }
 
 

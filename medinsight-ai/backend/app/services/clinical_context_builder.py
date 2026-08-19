@@ -83,13 +83,19 @@ class ClinicalContextBuilder:
             "safety_badges": [b for b in patient.get("safety_badges", []) if "PHONE" not in b and "ADDRESS" not in b]
         }
 
-        # Auto-detect intent from user message if context_type is default
+        # Auto-detect intent from user message
         inferred_intent = cls.detect_question_intent(user_message)
-        effective_context = inferred_intent if context_type in ["GENERAL_SUMMARY", "DEFAULT"] else context_type
+        if inferred_intent != "GENERAL_SUMMARY":
+            effective_context = inferred_intent
+        elif context_type and context_type not in ["DEFAULT"]:
+            effective_context = context_type
+        else:
+            effective_context = "GENERAL_SUMMARY"
 
         context_data = {
             "patient_summary": redacted_patient,
             "context_type": effective_context,
+            "detected_intent": inferred_intent,
             "user_question": user_message,
             "citations": ["EHR Master Patient Record"]
         }

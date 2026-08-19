@@ -390,9 +390,9 @@ class MongoDBManager:
             try:
                 # Support both localhost (mongodb://) and Atlas (mongodb+srv://) URIs
                 connect_kwargs = dict(
-                    serverSelectionTimeoutMS=8000,
-                    connectTimeoutMS=8000,
-                    socketTimeoutMS=15000,
+                    serverSelectionTimeoutMS=1500,
+                    connectTimeoutMS=1500,
+                    socketTimeoutMS=5000,
                     maxPoolSize=50,
                     minPoolSize=5,
                 )
@@ -409,12 +409,14 @@ class MongoDBManager:
                 self.ensure_indexes()
                 return
             except Exception as e:
+                self.client = None
                 logger.warning(
                     f"⚠️  MongoDB connection failed ({type(e).__name__}: {e}). "
                     f"Falling back to High-Performance Document Store."
                 )
 
         # Fallback to persistent high-performance document store (local JSON files)
+        self.client = None
         self.db = MemoryDocumentDatabase(db_name)
         self.is_atlas = False
         logger.warning(

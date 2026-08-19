@@ -314,11 +314,7 @@ export const HighRiskCommandCenterPage: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: 'all', label: 'All Inpatient Risk' },
-                { id: 'critical', label: 'Critical Only (≥70%)' },
-                { id: 'high', label: 'High Priority (50-69%)' },
-                { id: 'discharging_today', label: 'Discharging Soon' },
-                { id: 'med_rec_pending', label: 'Med Rec Pending' },
+                { id: 'all', label: 'All Patients' },
               ].map((f) => (
                 <button
                   key={f.id}
@@ -348,7 +344,6 @@ export const HighRiskCommandCenterPage: React.FC = () => {
                       <th className="py-3 px-4">Patient & MRN</th>
                       <th className="py-3 px-4">Primary Diagnosis</th>
                       <th className="py-3 px-4">Ward / Room</th>
-                      <th className="py-3 px-4">ML Readmission Risk</th>
                       <th className="py-3 px-4">Free ER Triage Protocol</th>
                       <th className="py-3 px-4">Care Coordinator</th>
                       <th className="py-3 px-4 text-right">Actions</th>
@@ -357,7 +352,7 @@ export const HighRiskCommandCenterPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100">
                     {filteredInpatients.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-500">
+                        <td colSpan={6} className="py-8 text-center text-slate-500">
                           No patients found matching the surveillance filter.
                         </td>
                       </tr>
@@ -378,18 +373,6 @@ export const HighRiskCommandCenterPage: React.FC = () => {
                           <td className="py-3 px-4 text-slate-600">
                             <div>{p.current_ward || 'Ward 5B'}</div>
                             <div className="text-[10px] text-slate-400">Rm {p.current_room || '5B-102'}</div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-black inline-flex items-center gap-1 ${
-                                p.risk_level === 'Critical'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
-                              }`}
-                            >
-                              <ShieldAlert className="w-3.5 h-3.5" />
-                              {Math.round((p.risk_probability || 0.55) * 100)}% {p.risk_level || 'High'}
-                            </span>
                           </td>
                           <td className="py-3 px-4">
                             {(p.risk_probability || 0) >= 0.45 ? (

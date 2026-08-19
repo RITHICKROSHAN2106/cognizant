@@ -191,7 +191,7 @@ def log_audit_event(
     user: Optional[CurrentUser],
     action: str,
     resource: str,
-    patient_id: Optional[int] = None,
+    patient_id: Optional[Union[int, str]] = None,
     encounter_id: Optional[str] = None,
     details: Optional[dict] = None,
     ip_address: str = "127.0.0.1",

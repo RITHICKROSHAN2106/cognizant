@@ -39,8 +39,20 @@ export const postDischargeService = {
     return response.data.data;
   },
 
-  updateFollowUp: async (visitId: number, update: Partial<FollowUpVisit>): Promise<any> => {
-    const response = await apiClient.patch(`/follow-ups/${visitId}`, update);
+  updateFollowUp: async (visitId: number, update: Partial<FollowUpVisit>, patientId?: number): Promise<any> => {
+    const url = patientId ? `/patients/${patientId}/follow-ups/${visitId}` : `/follow-ups/${visitId}`;
+    const response = await apiClient.patch(url, { ...update, patient_id: patientId });
+    return response.data.data;
+  },
+
+  addFollowUp: async (patientId: number, visit: Partial<FollowUpVisit>): Promise<any> => {
+    const response = await apiClient.post(`/patients/${patientId}/follow-ups`, visit);
+    return response.data.data;
+  },
+
+  deleteFollowUp: async (visitId: number, patientId?: number): Promise<any> => {
+    const url = patientId ? `/patients/${patientId}/follow-ups/${visitId}` : `/follow-ups/${visitId}`;
+    const response = await apiClient.delete(url, { params: { patient_id: patientId } });
     return response.data.data;
   },
 

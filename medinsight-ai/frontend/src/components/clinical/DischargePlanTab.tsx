@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -11,7 +12,8 @@ import {
   Calendar,
   Pill,
   ShieldAlert,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { Patient, DischargePlan, Recommendation } from '../../types/clinical';
 import { recommendationService } from '../../services/recommendationService';
@@ -22,6 +24,7 @@ interface DischargePlanTabProps {
 }
 
 export const DischargePlanTab: React.FC<DischargePlanTabProps> = ({ patient }) => {
+  const navigate = useNavigate();
   const { openCopilot } = useCopilot();
   const [plan, setPlan] = useState<DischargePlan | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -134,14 +137,23 @@ export const DischargePlanTab: React.FC<DischargePlanTabProps> = ({ patient }) =
             <p className="text-xs text-slate-300 max-w-xl mt-1">
               Systematic safety checklist and personalized prevention interventions to prevent avoidable 30-day hospital readmissions.
             </p>
-            <div className="mt-3">
+            <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => openCopilot('DISCHARGE', 'Evaluate discharge readiness, check pending barriers, and draft clinical transition recommendations.')}
-                className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-sky-300" />
                 <span>Ask Copilot Discharge Assessment</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/reports?patientId=${patient.id}`)}
+                className="px-3 py-1.5 bg-white text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-sky-600" />
+                <span>View Official Discharge Summary Document</span>
               </button>
             </div>
           </div>

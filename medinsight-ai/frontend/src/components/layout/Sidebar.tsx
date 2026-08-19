@@ -55,7 +55,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { label: 'Readmission Risk AI', path: '/risk', icon: BrainCircuit, requiredPermission: 'prediction:view' },
         { label: 'Post-Discharge Center', path: '/post-discharge', icon: HeartPulse, requiredPermission: 'followup:view' },
-        { label: 'High-Risk Coordination', path: '/high-risk', icon: ShieldAlert, requiredPermission: 'care_plan:view' },
+        { label: 'Multidisciplinary Coordination', path: '/high-risk', icon: ShieldAlert, requiredPermission: 'care_plan:view' },
         { label: 'Clinical Reports', path: '/reports', icon: FileText, requiredPermission: 'reports:view' },
       ]
     },

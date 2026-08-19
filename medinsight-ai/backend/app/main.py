@@ -117,5 +117,6 @@ def root():
         "status": "online",
         "database": "MongoDB Atlas",
         "documentation": "/docs",
-        "health": "/api/system/health"
+        "health": "/api/system/health",
+        "version": "2.1.1"
     }

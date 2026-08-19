@@ -1,7 +1,7 @@
 import datetime
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from pydantic import BaseModel
 from app.database.mongodb import get_mongodb
 from app.schemas.schemas import (
@@ -57,7 +57,7 @@ def get_post_discharge_counts(
 
 @router.get("/patients/{patient_id}/post-discharge", response_model=ApiResponse[PostDischargeCarePlan])
 def get_patient_post_discharge_plan(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -87,38 +87,89 @@ def get_patient_post_discharge_plan(
 
 @router.post("/patients/{patient_id}/post-discharge", response_model=ApiResponse[PostDischargeCarePlan])
 def update_patient_post_discharge_plan(
-    patient_id: int,
+    patient_id: Union[int, str],
     plan_update: Dict[str, Any],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(require_permission(PermissionEnum.CARE_PLAN_UPDATE.value))
 ):
     """Updates recovery status, assigned staff, or care coordinator notes."""
-    plan_update["updated_at"] = datetime.datetime.utcnow().isoformat()
-    db["post_discharge_care_plans"].update_one(
-        {"patient_id": patient_id},
-        {"$set": plan_update},
-        upsert=True
-    )
-    updated = post_discharge_service.get_post_discharge_plan(patient_id, db=db)
+    existing = post_discharge_service.get_post_discharge_plan(patient_id, db=db)
+    now_iso = datetime.datetime.utcnow().isoformat()
+    plan_update["updated_at"] = now_iso
+
+    for k, v in plan_update.items():
+        if isinstance(v, dict) and isinstance(existing.get(k), dict):
+            existing[k].update(v)
+        else:
+            existing[k] = v
+    
+    clean_id = existing.get("patient_id") or patient_id
+
+    # Ensure nested sub-models have required identity and date fields
+    if existing.get("nutrition_plan") and isinstance(existing["nutrition_plan"], dict):
+        np = existing["nutrition_plan"]
+        np.setdefault("id", 1)
+        np.setdefault("patient_id", clean_id)
+        np.setdefault("plan_start_date", existing.get("discharge_date", "2025-01-01"))
+        np.setdefault("last_reviewed", now_iso.split("T")[0])
+        np.setdefault("next_review", (datetime.datetime.utcnow() + datetime.timedelta(days=14)).isoformat().split("T")[0])
+        np.setdefault("restrictions", [])
+        np.setdefault("adherence_status", "Adherent")
+        np.setdefault("status", "Assigned")
+
+    if existing.get("coverage") and isinstance(existing["coverage"], dict):
+        cov = existing["coverage"]
+        cov.setdefault("id", 1)
+        cov.setdefault("patient_id", clean_id)
+        cov.setdefault("valid_from", "2025-01-01")
+        cov.setdefault("valid_until", "2026-12-31")
+        cov.setdefault("emergency_coverage", True)
+        cov.setdefault("rehabilitation_coverage", True)
+        cov.setdefault("medication_coverage", True)
+        cov.setdefault("dietician_coverage", True)
+        cov.setdefault("followup_coverage", True)
+        cov.setdefault("coverage_status", "Active")
+        cov.setdefault("emergency_support_eligibility", "Eligible")
+
+    if existing.get("rehabilitation_plan") and isinstance(existing["rehabilitation_plan"], dict):
+        reb = existing["rehabilitation_plan"]
+        reb.setdefault("id", 1)
+        reb.setdefault("patient_id", clean_id)
+        reb.setdefault("rehabilitation_type", "Mobility Regimen")
+        reb.setdefault("start_date", existing.get("discharge_date", "2025-01-01"))
+        reb.setdefault("expected_end_date", (datetime.datetime.utcnow() + datetime.timedelta(days=30)).isoformat().split("T")[0])
+        reb.setdefault("next_session", (datetime.datetime.utcnow() + datetime.timedelta(days=7)).isoformat().split("T")[0])
+        reb.setdefault("frequency", "2 sessions / week")
+        reb.setdefault("status", "In Progress")
+        reb.setdefault("progress_percentage", 40)
+        reb.setdefault("goals", [])
+        reb.setdefault("sessions", [])
+
+    if db is not None:
+        db["post_discharge_care_plans"].update_one(
+            {"patient_id": clean_id},
+            {"$set": existing},
+            upsert=True
+        )
     
     log_audit_event(
         db=db,
         user=current_user,
         action="CARE_PLAN_UPDATED",
         resource="post_discharge",
-        patient_id=patient_id
+        patient_id=clean_id
     )
 
     return ApiResponse(
         success=True,
-        data=PostDischargeCarePlan(**updated),
+        data=PostDischargeCarePlan(**existing),
         message="Post-discharge care plan updated successfully"
     )
 
 
 @router.get("/patients/{patient_id}/follow-ups", response_model=ApiResponse[List[FollowUpVisit]])
 def get_patient_follow_ups(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -131,25 +182,149 @@ def get_patient_follow_ups(
     )
 
 
+@router.patch("/patients/{patient_id}/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
+@router.post("/patients/{patient_id}/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
 @router.patch("/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
 @router.post("/post-discharge/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
 def update_follow_up_visit(
     visit_id: int,
     update_data: FollowUpVisitUpdate,
+    patient_id: Optional[Union[int, str]] = None,
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(require_permission(PermissionEnum.FOLLOWUP_UPDATE.value))
 ):
-    """Updates status or clinical notes of a scheduled follow-up visit."""
-    return ApiResponse(
-        success=True,
-        data={"visit_id": visit_id, "updated": update_data.model_dump(exclude_unset=True), "status": "Success"},
-        message=f"Follow-up visit {visit_id} updated"
-    )
+    """Updates status, completion, date, or clinical notes of a scheduled follow-up visit."""
+    resolved_pid = patient_id
+    raw_dict = update_data.model_dump(exclude_unset=True)
+
+    # If patient_id was not explicitly in the URL path, find it from the payload or lookup in care plans
+    if resolved_pid is None and "patient_id" in raw_dict:
+        resolved_pid = raw_dict["patient_id"]
+
+    if resolved_pid is None and db is not None:
+        found_plan = db["post_discharge_care_plans"].find_one({"follow_up_visits.id": visit_id})
+        if found_plan:
+            resolved_pid = found_plan.get("patient_id")
+
+    if resolved_pid is None:
+        resolved_pid = 1  # Default fallback if isolated
+
+    try:
+        result = post_discharge_service.update_follow_up_visit(
+            patient_id=resolved_pid,
+            visit_id=visit_id,
+            update_data=raw_dict,
+            db=db
+        )
+
+        log_audit_event(
+            db=db,
+            user=current_user,
+            action="FOLLOW_UP_VISIT_UPDATED",
+            resource="follow_ups",
+            details={"visit_id": visit_id, "updated_fields": raw_dict, "completion_rate": result["completion_rate"]},
+            patient_id=resolved_pid
+        )
+
+        return ApiResponse(
+            success=True,
+            data=result,
+            message=f"Follow-up visit {visit_id} updated successfully (Status: {result['visit'].get('status')})"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update follow-up visit {visit_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating follow-up visit: {str(e)}"
+        )
+
+
+@router.post("/patients/{patient_id}/follow-ups", response_model=ApiResponse[Dict[str, Any]])
+def add_patient_follow_up(
+    patient_id: Union[int, str],
+    visit_data: Dict[str, Any],
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.FOLLOWUP_UPDATE.value))
+):
+    """Adds a new scheduled follow-up visit to the patient's care continuum."""
+    try:
+        result = post_discharge_service.add_follow_up_visit(
+            patient_id=patient_id,
+            visit_data=visit_data,
+            db=db
+        )
+
+        log_audit_event(
+            db=db,
+            user=current_user,
+            action="FOLLOW_UP_VISIT_CREATED",
+            resource="follow_ups",
+            details={"new_visit_id": result["visit"].get("id"), "visit_type": result["visit"].get("visit_type")},
+            patient_id=patient_id
+        )
+
+        return ApiResponse(
+            success=True,
+            data=result,
+            message="New follow-up visit scheduled successfully"
+        )
+    except Exception as e:
+        logger.error(f"Failed to add follow-up visit for patient {patient_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error scheduling follow-up visit: {str(e)}"
+        )
+
+
+@router.delete("/patients/{patient_id}/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
+@router.delete("/follow-ups/{visit_id}", response_model=ApiResponse[Dict[str, Any]])
+def delete_patient_follow_up(
+    visit_id: int,
+    patient_id: Optional[Union[int, str]] = None,
+    db=Depends(get_mongodb),
+    current_user: CurrentUser = Depends(require_permission(PermissionEnum.FOLLOWUP_UPDATE.value))
+):
+    """Removes or cancels a scheduled follow-up visit."""
+    resolved_pid = patient_id
+    if resolved_pid is None and db is not None:
+        found_plan = db["post_discharge_care_plans"].find_one({"follow_up_visits.id": visit_id})
+        if found_plan:
+            resolved_pid = found_plan.get("patient_id")
+    if resolved_pid is None:
+        resolved_pid = 1
+
+    try:
+        result = post_discharge_service.delete_follow_up_visit(
+            patient_id=resolved_pid,
+            visit_id=visit_id,
+            db=db
+        )
+
+        log_audit_event(
+            db=db,
+            user=current_user,
+            action="FOLLOW_UP_VISIT_DELETED",
+            resource="follow_ups",
+            details={"deleted_visit_id": visit_id},
+            patient_id=resolved_pid
+        )
+
+        return ApiResponse(
+            success=True,
+            data=result,
+            message=f"Follow-up visit {visit_id} removed successfully"
+        )
+    except Exception as e:
+        logger.error(f"Failed to delete follow-up visit {visit_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing follow-up visit: {str(e)}"
+        )
 
 
 @router.get("/patients/{patient_id}/medication-supply", response_model=ApiResponse[List[MedicationSupplyItem]])
 def get_patient_medication_supply(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -164,7 +339,7 @@ def get_patient_medication_supply(
 
 @router.get("/patients/{patient_id}/nutrition-plan", response_model=ApiResponse[NutritionPlanSchema])
 def get_patient_nutrition_plan(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(require_permission(PermissionEnum.NUTRITION_VIEW.value))
 ):
@@ -203,7 +378,7 @@ def update_nutrition_plan_mutation(
 
 @router.get("/patients/{patient_id}/rehabilitation", response_model=ApiResponse[RehabilitationPlanSchema])
 def get_patient_rehabilitation(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(require_permission(PermissionEnum.REHABILITATION_VIEW.value))
 ):
@@ -242,7 +417,7 @@ def update_rehabilitation_plan_mutation(
 
 @router.get("/patients/{patient_id}/coverage", response_model=ApiResponse[PatientCoverageSchema])
 def get_patient_coverage(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
@@ -257,7 +432,7 @@ def get_patient_coverage(
 
 @router.post("/patients/{patient_id}/encounters", response_model=ApiResponse[Dict[str, Any]], status_code=status.HTTP_201_CREATED)
 def create_patient_encounter(
-    patient_id: int,
+    patient_id: Union[int, str],
     encounter_data: Dict[str, Any],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(require_permission(PermissionEnum.ENCOUNTER_CREATE.value))
@@ -296,7 +471,7 @@ def create_patient_encounter(
 
 @router.get("/patients/{patient_id}/readmissions", response_model=ApiResponse[List[ReadmissionEventSchema]])
 def get_patient_readmission_history(
-    patient_id: int,
+    patient_id: Union[int, str],
     db=Depends(get_mongodb),
     current_user: CurrentUser = Depends(get_current_user)
 ):
